@@ -1,3 +1,5 @@
+If you would like to use this library run ``maturin develop --release`` from the project root and it will install the Python package into your environment
+
 ```python
 import numpy as np
 import pandas as pd
