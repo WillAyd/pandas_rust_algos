@@ -11,17 +11,21 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut out: ArrayViewMut1<u8>,
         fill_value: u8,
     ) {
-        for (idx, val) in indexer.iter().enumerate() {
-            match val {
+        for (i, idx) in indexer.iter().enumerate() {
+            match idx {
                 -1 => {
-                    out[idx] = fill_value;
+                    out[i] = fill_value;
                 }
-                _ => out[idx] = values[idx],
+                _ => {
+                    let uidx = usize::try_from(*idx).unwrap();
+                    out[i] = values[uidx]
+                }
             }
         }
     }
 
     #[pyfn(m)]
+    #[pyo3(name = "take_1d")]
     fn take_1d_py<'py>(
         values: PyReadonlyArray1<u8>,
         indexer: PyReadonlyArray1<i64>,
