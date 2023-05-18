@@ -13,6 +13,13 @@ out1 = np.empty((N,), dtype="uint8")
 out2 = np.empty((N,), dtype="uint8")
 
 pd._libs.algos.take_1d_bool_bool(values, indexer, out1, 0)
-pra.take_1d(values, indexer, out2, 0)
+
+// For now don't support fill-argument; will eventually, just need to
+// figure out how to bind the out argument generic type T to the fill
+// argument type
+pra.take_1d(values, indexer, out2)
 (out1 == out2).all()
+
+// Feel free to try out other types
+pra.take_1d(values.astype("int16"), indexer, out2.astype("int64"))
 

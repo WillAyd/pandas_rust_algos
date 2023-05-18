@@ -1,5 +1,5 @@
 use numpy::ndarray::{ArrayView1, ArrayViewMut1};
-use numpy::{PyArray1, PyReadonlyArray1, PyReadwriteArray1};
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::PyResult;
 use std::fmt::Debug;
@@ -7,7 +7,7 @@ use std::fmt::Debug;
 #[pymodule]
 fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     #[derive(FromPyObject)]
-    enum TakeArrayInType<'py> {
+    enum TakeType<'py> {
         U8(&'py PyArray1<u8>),
         I8(&'py PyArray1<i8>),
         I16(&'py PyArray1<i16>),
@@ -39,44 +39,108 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "take_1d")]
-    fn take_1d_py<'py>(
-        values: TakeArrayInType<'py>,
-        indexer: PyReadonlyArray1<i64>,
-        mut out: PyReadwriteArray1<u8>,
-        fill_value: u8,
-    ) {
-        match values {
-            TakeArrayInType::U8(values) => take_1d(
+    fn take_1d_py<'py>(values: TakeType<'py>, indexer: PyReadonlyArray1<i64>, out: TakeType<'py>) {
+        match (values, out) {
+            (TakeType::U8(values), TakeType::U8(out)) => take_1d(
                 values.readonly().as_array(),
                 indexer.as_array(),
-                out.as_array_mut(),
-                fill_value,
+                out.readwrite().as_array_mut(),
+                0,
             ),
-            TakeArrayInType::I8(values) => take_1d(
+            (TakeType::I8(values), TakeType::I8(out)) => take_1d(
                 values.readonly().as_array(),
                 indexer.as_array(),
-                out.as_array_mut(),
-                fill_value,
+                out.readwrite().as_array_mut(),
+                0,
             ),
-            TakeArrayInType::I16(values) => take_1d(
+            (TakeType::I8(values), TakeType::I32(out)) => take_1d(
                 values.readonly().as_array(),
                 indexer.as_array(),
-                out.as_array_mut(),
-                fill_value,
+                out.readwrite().as_array_mut(),
+                0,
             ),
-            TakeArrayInType::I32(values) => take_1d(
+            (TakeType::I8(values), TakeType::I64(out)) => take_1d(
                 values.readonly().as_array(),
                 indexer.as_array(),
-                out.as_array_mut(),
-                fill_value,
+                out.readwrite().as_array_mut(),
+                0,
             ),
-            TakeArrayInType::I64(values) => take_1d(
+            (TakeType::I8(values), TakeType::F64(out)) => take_1d(
                 values.readonly().as_array(),
                 indexer.as_array(),
-                out.as_array_mut(),
-                fill_value,
+                out.readwrite().as_array_mut(),
+                0.0,
             ),
-            _ => {}
+            (TakeType::I16(values), TakeType::I32(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0,
+            ),
+            (TakeType::I16(values), TakeType::I64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0,
+            ),
+            (TakeType::I16(values), TakeType::F64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0.0,
+            ),
+            (TakeType::I32(values), TakeType::I32(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0,
+            ),
+            (TakeType::I32(values), TakeType::I64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0,
+            ),
+            (TakeType::I32(values), TakeType::F64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0.0,
+            ),
+            (TakeType::I64(values), TakeType::I64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0,
+            ),
+            // TODO: the trait `From<i64>` is not implemented for `f64`
+            /*
+                (TakeType::I64(values), TakeType::F64(out)) => take_1d(
+                    values.readonly().as_array(),
+                    indexer.as_array(),
+                    out.readwrite().as_array_mut(),
+                    0.0,
+            ),
+             */
+            (TakeType::F32(values), TakeType::F32(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0.0,
+            ),
+            (TakeType::F32(values), TakeType::F64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0.0,
+            ),
+            (TakeType::F64(values), TakeType::F64(out)) => take_1d(
+                values.readonly().as_array(),
+                indexer.as_array(),
+                out.readwrite().as_array_mut(),
+                0.0,
+            ),
+            (_, _) => panic!("Types not supported"),
         }
     }
 
