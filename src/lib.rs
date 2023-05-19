@@ -1,7 +1,9 @@
-use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
+use ndarray::parallel::prelude::*;
+use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2};
 use pyo3::prelude::*;
 use pyo3::PyResult;
+use std::cell::UnsafeCell;
 use std::fmt::Debug;
 
 #[pymodule]
@@ -176,5 +178,61 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     ) {
         take_2d(values.as_array(), indexer.as_array(), out.as_array_mut())
     }
+
+    #[derive(Copy, Clone)]
+    struct UnsafeArrayView2<'a> {
+        array: &'a UnsafeCell<ArrayViewMut2<'a, i64>>,
+    }
+
+    unsafe impl<'a> Send for UnsafeArrayView2<'a> {}
+    unsafe impl<'a> Sync for UnsafeArrayView2<'a> {}
+
+    impl<'a> UnsafeArrayView2<'a> {
+        pub fn new(array: &'a mut ArrayViewMut2<i64>) -> Self {
+            let ptr = array as *mut ArrayViewMut2<i64> as *const UnsafeCell<ArrayViewMut2<i64>>;
+            Self {
+                array: unsafe { &*ptr },
+            }
+        }
+
+        /// SAFETY: It is UB if two threads write to the same index without
+        /// synchronization.
+        pub unsafe fn write(&self, i: usize, j: usize, value: i64) {
+            let ptr = self.array.get();
+            *(*ptr).uget_mut((i, j)) = value;
+        }
+    }
+
+    fn take_2d_unsafe(
+        values: ArrayView2<i64>,
+        indexer: ArrayView1<i64>,
+        mut out: ArrayViewMut2<i64>,
+    ) {
+        let ncols = indexer.raw_dim()[0];
+        let uout = UnsafeArrayView2::new(&mut out);
+
+        Zip::indexed(values.axis_iter(Axis(0)))
+            .into_par_iter()
+            .for_each(|(i, val_row)| {
+                for j in 0..ncols {
+                    unsafe {
+                        let idx = *indexer.uget(j);
+                        let val = *val_row.uget(idx as usize);
+                        uout.write(i, j, val);
+                    }
+                }
+            });
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "take_2d_unsafe")]
+    fn take_2d_unsafe_py<'py>(
+        values: PyReadonlyArray2<i64>,
+        indexer: PyReadonlyArray1<i64>,
+        mut out: PyReadwriteArray2<i64>,
+    ) {
+        take_2d_unsafe(values.as_array(), indexer.as_array(), out.as_array_mut())
+    }
+
     Ok(())
 }
