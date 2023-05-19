@@ -145,14 +145,23 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     fn take_2d(values: ArrayView2<i64>, indexer: ArrayView1<i64>, mut out: ArrayViewMut2<i64>) {
-        let nrows = values.raw_dim()[0];
         let ncols = indexer.raw_dim()[0];
 
-        for i in 0..nrows {
+        /*
+            for i in 0..nrows {
+                for j in 0..ncols {
+                    unsafe {
+                        let idx = *indexer.uget(j);
+                        *out.uget_mut((i, j)) = *values.uget((i, idx as usize));
+                    }
+                }
+        }
+             */
+        for (i, val_row) in values.axis_iter(Axis(0)).enumerate() {
             for j in 0..ncols {
                 unsafe {
                     let idx = *indexer.uget(j);
-                    *out.uget_mut((i, j)) = *values.uget((i, idx as usize));
+                    *out.uget_mut((i, j)) = *val_row.uget(idx as usize);
                 }
             }
         }
