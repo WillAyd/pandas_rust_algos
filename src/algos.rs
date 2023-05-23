@@ -1,6 +1,48 @@
 use numpy::ndarray::{Array1, ArrayView1, ArrayView2, ArrayViewMut2, Axis};
+use std::ptr;
 
-pub fn take_2d<T>(values: ArrayView2<T>, indexer: ArrayView1<i64>, mut out: ArrayViewMut2<T>)
+pub unsafe fn kth_smallest_c<T>(arr: *const T, k: usize, n: usize) -> T
+where
+    T: PartialOrd + Copy,
+{
+    let mut left = 0;
+    let mut m = n - 1;
+
+    while left < m {
+        let x = *arr.add(k);
+        let mut i = left;
+        let mut j = m;
+
+        while true {
+            while *arr.add(i) < x {
+                i += 1;
+            }
+            while x < *arr.add(j) {
+                j -= 1;
+            }
+            if i <= j {
+                ptr::swap(arr.add(i).cast_mut(), arr.add(j).cast_mut());
+                i += 1;
+                j -= 1;
+            }
+
+            if i > j {
+                break;
+            }
+        }
+
+        if j < k {
+            left = i;
+        }
+        if k < i {
+            m = j;
+        }
+    }
+
+    *arr.add(k)
+}
+
+pub fn take_2d_axis1<T>(values: ArrayView2<T>, indexer: ArrayView1<i64>, mut out: ArrayViewMut2<T>)
 where
     T: Copy,
 {

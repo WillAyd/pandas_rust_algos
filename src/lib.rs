@@ -1,6 +1,6 @@
 mod algos;
 mod groupby;
-use crate::algos::take_2d;
+use crate::algos::take_2d_axis1;
 use crate::groupby::group_median_float64;
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
@@ -151,13 +151,13 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "take_2d")]
-    fn take_2d_py<'py>(
+    #[pyo3(name = "take_2d_axis1")]
+    fn take_2d_axis1_py<'py>(
         values: PyReadonlyArray2<i64>,
         indexer: PyReadonlyArray1<i64>,
         mut out: PyReadwriteArray2<i64>,
     ) {
-        take_2d(values.as_array(), indexer.as_array(), out.as_array_mut())
+        take_2d_axis1(values.as_array(), indexer.as_array(), out.as_array_mut())
     }
 
     #[derive(Copy, Clone)]
@@ -224,7 +224,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         mask: PyReadonlyArray2<u8>,
-        result_mask: PyReadonlyArray2<u8>,
+        mut result_mask: PyReadwriteArray2<u8>,
     ) {
         group_median_float64(
             out.as_array_mut(),
@@ -233,7 +233,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             labels.as_array(),
             min_count,
             mask.as_array(),
-            result_mask.as_array(),
+            result_mask.as_array_mut(),
         )
     }
 
