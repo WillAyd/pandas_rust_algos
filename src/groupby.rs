@@ -215,40 +215,73 @@ pub fn group_cumprod(
     let k = dim[1];
 
     let mut accum = Array2::<f64>::ones((ngroups as usize, k));
-    // TODO: can we implement _get_na_val as a trait?
-    // 0 only works for integers; should be nan for floats,
-    // which is already a trait
     let na_val = f64::NAN;
     let mut accum_mask = Array2::<u8>::zeros((ngroups as usize, k));
 
-    let mut isna_entry = false;
-    let mut isna_prev = false;
-    let uses_mask = if py_mask.is_none() { false } else { true };
-
-    for i in 0..n {
-        unsafe {
-            let lab = *labels.uget(i);
-            if lab < 0 {
-                continue;
-            }
-
-            for j in 0..k {
-                let val = *values.uget((i, j));
-                match py_mask {
-                    Some(py_mask) => {
-                        isna_entry = (*py_mask.as_array().uget((i, j))) == 0;
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
                     }
-                    None => {
-                        isna_entry = val.is_nan();
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = *mask.uget((i, j)) == 0;
+                        if !isna_entry {
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) == 0;
+                            if isna_prev {
+                                *out.uget_mut((i, j)) = na_val;
+                                *result_mask.uget_mut((i, j)) = 1;
+                            } else {
+                                *accum.uget_mut((lab as usize, j)) *= val;
+                                *out.uget_mut((i, j)) = val;
+                            }
+                        } else {
+                            *result_mask.uget_mut((i, j)) = 1;
+                            *out.uget_mut((i, j)) = 0.;
+
+                            if !skipna {
+                                *accum.uget_mut((lab as usize, j)) *= na_val;
+                                *accum_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                        }
                     }
                 }
-
-                if !isna_entry {
-                    isna_prev = *accum_mask.uget((lab as usize, j)) == 0;
-                    if isna_prev {
-                        *out.uget_mut((i, j)) = na_val;
+            }
+        }
+        (_, _) => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
                     }
-                } else {
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = val.is_nan();
+                        if !isna_entry {
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) == 0;
+                            if isna_prev {
+                                *out.uget_mut((i, j)) = na_val;
+                            } else {
+                                *accum.uget_mut((lab as usize, j)) *= val;
+                                *out.uget_mut((i, j)) = val;
+                            }
+                        } else {
+                            *out.uget_mut((i, j)) = f64::NAN;
+
+                            if !skipna {
+                                *accum.uget_mut((lab as usize, j)) *= na_val;
+                                *accum_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                        }
+                    }
                 }
             }
         }

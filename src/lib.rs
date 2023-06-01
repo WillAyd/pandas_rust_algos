@@ -1,7 +1,7 @@
 mod algos;
 mod groupby;
 use crate::algos::take_2d_axis1;
-use crate::groupby::group_median_float64;
+use crate::groupby::{group_cumprod, group_median_float64};
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
@@ -232,6 +232,33 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             values.as_array(),
             labels.as_array(),
             min_count,
+            mask,
+            result_mask,
+        )
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_cumprod")]
+    // TODO: pandas has a generic implementation for int64 / float
+    // this is currently just float; we likely want a custom type trait
+    // to serve the NA value for ints versus float objects
+    fn group_cumprod_py<'py>(
+        mut out: PyReadwriteArray2<f64>,
+        values: PyReadonlyArray2<f64>,
+        labels: PyReadonlyArray1<i64>,
+        ngroups: i64,
+        is_datetimelike: bool,
+        skipna: bool,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
+    ) {
+        group_cumprod(
+            out.as_array_mut(),
+            values.as_array(),
+            labels.as_array(),
+            ngroups,
+            is_datetimelike,
+            skipna,
             mask,
             result_mask,
         )
