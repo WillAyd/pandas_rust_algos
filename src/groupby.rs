@@ -69,7 +69,7 @@ unsafe fn median_linear(a: *const f64, mut n: i64) -> f64 {
     }
 
     for i in 0..n {
-        if *a.add(i as usize) == *a.add(i as usize) {
+        if (*a.add(i as usize)).is_nan() {
             na_count += 1;
         }
     }
@@ -87,7 +87,7 @@ unsafe fn median_linear(a: *const f64, mut n: i64) -> f64 {
 
         let mut j = 0;
         for i in 0..n {
-            if *a.add(i as usize) == *a.add(i as usize) {
+            if (*a.add(i as usize)).is_finite() {
                 *(ptr as *mut f64).add(j) = *a.add(i as usize);
                 j += 1;
             }
@@ -124,7 +124,7 @@ pub fn group_median_float64(
     let (indexer, _counts) = groupsort_indexer(labels, ngroups);
     counts.assign(&_counts.slice(s![1..]));
 
-    let mut data = Array2::<f64>::default((n, k));
+    let mut data = Array2::<f64>::default((k, n));
     let mut ptr = data.as_ptr();
 
     take_2d_axis1(values.t(), indexer.view(), data.view_mut());

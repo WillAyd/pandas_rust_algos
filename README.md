@@ -52,5 +52,5 @@ result_mask = None
 libgroupby.group_median_float64(result1, counts, values, comp_ids, min_count=min_count)
 pra.group_median_float64(result2, counts, values, comp_ids, min_count, mask, result_mask)
 
-assert result1 == result2
+assert (result1 == result2).all()
 ```
