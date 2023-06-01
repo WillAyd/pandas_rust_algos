@@ -49,8 +49,8 @@ mask = None
 result_mask = None
 
 # might not be able to supply mask / result_mask depending on version of pandas
-libgroupby.group_median_float64(result1, counts, values, comp_ids, min_count=min_count)
-pra.group_median_float64(result2, counts, values, comp_ids, min_count, mask, result_mask)
+%timeit libgroupby.group_median_float64(result1, counts, values, comp_ids, min_count=min_count)
+%timeit pra.group_median_float64(result2, counts, values, comp_ids, min_count, mask, result_mask)
 
 assert (result1 == result2).all()
 ```

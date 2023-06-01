@@ -68,18 +68,25 @@ pub fn groupsort_indexer(index: ArrayView1<i64>, ngroups: usize) -> (Array1<i64>
     let mut where_ = Array1::<i64>::zeros(ngroups + 1);
 
     for i in 0..n {
-        let idx = index[i];
-        counts[(idx + 1) as usize] += 1;
+        unsafe {
+            let idx = index.uget(i);
+            *counts.uget_mut((*idx + 1) as usize) += 1;
+        }
     }
 
     for i in 1..ngroups + 1 {
-        where_[i] = where_[i - 1] + counts[i - 1];
+        unsafe {
+            *where_.uget_mut(i) = where_.uget(i - 1) + counts.uget(i - 1);
+        }
     }
 
     for i in 0..n {
-        let label = index[i] + 1;
-        indexer[where_[label as usize] as usize] = i as i64;
-        where_[label as usize] += 1;
+        unsafe {
+            let label = *index.uget(i) + 1;
+            let idx = where_.uget_mut(label as usize);
+            indexer[*idx as usize] = i as i64;
+            *idx += 1;
+        }
     }
 
     (indexer, counts)
