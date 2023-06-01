@@ -26,3 +26,31 @@ pra.take_1d(values, indexer, out2)
 # Feel free to try out other types
 pra.take_1d(values.astype("int16"), indexer, out2.astype("int64"))
 ```
+
+For median
+
+```python
+import numpy as np
+import pandas._libs.groupby as libgroupby
+import pandas_rust_algos as pra
+
+N = 10_000
+ngroups = 50
+result1 = np.empty((ngroups, 1), dtype="float64")
+result2 = np.empty((ngroups, 1), dtype="float64")
+counts = np.zeros((ngroups,), dtype="int64")
+
+np.random.seed(42)
+values = np.random.rand(N, 1)
+np.random.seed(42)
+comp_ids = np.random.randint(ngroups, size=(N,))
+min_count = -1
+mask = None
+result_mask = None
+
+# might not be able to supply mask / result_mask depending on version of pandas
+libgroupby.group_median_float64(result1, counts, values, comp_ids, min_count=min_count)
+pra.group_median_float64(result2, counts, values, comp_ids, min_count, mask, result_mask)
+
+assert result1 == result2
+```

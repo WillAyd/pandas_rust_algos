@@ -112,7 +112,7 @@ pub fn group_median_float64(
     py_mask: Option<PyReadonlyArray2<u8>>,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
 ) {
-    if min_count == -1 {
+    if min_count != -1 {
         panic!("'min_count' only used in sum and prod");
     }
 
