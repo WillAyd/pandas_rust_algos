@@ -6,7 +6,7 @@ where
     T: PartialOrd + Copy,
 {
     let mut left = 0;
-    let mut m = n - 1;
+    let mut m: isize = (n - 1) as isize;
 
     while left < m {
         let x = *arr.add(k);
@@ -14,14 +14,17 @@ where
         let mut j = m;
 
         loop {
-            while *arr.add(i) < x {
+            while *arr.add(i as usize) < x {
                 i += 1;
             }
-            while x < *arr.add(j) {
+            while x < *arr.add(j as usize) {
                 j -= 1;
             }
             if i <= j {
-                ptr::swap(arr.add(i).cast_mut(), arr.add(j).cast_mut());
+                ptr::swap(
+                    arr.add(i as usize).cast_mut(),
+                    arr.add(j as usize).cast_mut(),
+                );
                 i += 1;
                 j -= 1;
             }
@@ -31,10 +34,10 @@ where
             }
         }
 
-        if j < k {
+        if j < k as isize {
             left = i;
         }
-        if k < i {
+        if k < i as usize {
             m = j;
         }
     }
@@ -75,7 +78,7 @@ pub fn groupsort_indexer(index: ArrayView1<i64>, ngroups: usize) -> (Array1<i64>
 
     for i in 0..n {
         let label = index[i] + 1;
-        indexer[label as usize] = i as i64;
+        indexer[where_[label as usize] as usize] = i as i64;
         where_[label as usize] += 1;
     }
 
