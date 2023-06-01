@@ -224,7 +224,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         mask: Option<PyReadonlyArray2<u8>>,
-        mut result_mask: Option<PyReadwriteArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) {
         group_median_float64(
             out.as_array_mut(),

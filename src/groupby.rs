@@ -1,23 +1,25 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem::size_of;
 
-use crate::algos::{groupsort_indexer, take_2d_axis1};
-use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
+use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 
 unsafe fn calc_median_linear(a: *const f64, n: i64, na_count: i64) -> f64 {
-    let mut result;
-
+    let result;
+    let halfway = (n / 2) as usize;
     if (n % 2) > 0 {
-        result = 1.;
+        result = kth_smallest_c(a, halfway, n as usize);
     } else {
-        result = 0.;
+        result = (kth_smallest_c(a, halfway, n as usize)
+            + kth_smallest_c(a, halfway - 1, n as usize))
+            / 2.;
     }
 
     result
 }
 
-unsafe fn median_linear_mask(a: *const f64, n: i64, mask: *const u8) -> f64 {
+unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const u8) -> f64 {
     let mut na_count = 0;
 
     if n == 0 {
@@ -30,23 +32,36 @@ unsafe fn median_linear_mask(a: *const f64, n: i64, mask: *const u8) -> f64 {
         }
     }
 
-    // TOOD: implement for NA
-    /*
-        if na_count > 0 {
-            if na_count == n {
-                return f64::NAN;
+    let result;
+    if na_count > 0 {
+        if na_count == n {
+            return f64::NAN;
+        }
+
+        let count = n - na_count;
+        // TODO: better method than having to specify alignment?
+        let layout = Layout::from_size_align(size_of::<f64>() * count as usize, 8);
+        let ptr = alloc(layout.clone().unwrap());
+
+        let mut j = 0;
+        for i in 0..n {
+            if *mask.add(i as usize) == 0 {
+                *(ptr as *mut f64).add(j) = *a.add(i as usize);
+                j += 1;
             }
+        }
 
-        ... raw allocation in pandas
+        n -= na_count;
+        result = calc_median_linear(ptr as *const f64, n, na_count);
+        dealloc(ptr, layout.unwrap());
+    } else {
+        result = calc_median_linear(a, n, 0);
     }
-     */
-
-    let result = calc_median_linear(a, n, na_count);
 
     result
 }
 
-unsafe fn median_linear(a: *const f64, n: i64) -> f64 {
+unsafe fn median_linear(a: *const f64, mut n: i64) -> f64 {
     let mut na_count = 0;
 
     if n == 0 {
@@ -59,7 +74,7 @@ unsafe fn median_linear(a: *const f64, n: i64) -> f64 {
         }
     }
 
-    let mut result = 0.;
+    let result;
     if na_count > 0 {
         if na_count == n {
             return f64::NAN;
@@ -78,6 +93,7 @@ unsafe fn median_linear(a: *const f64, n: i64) -> f64 {
             }
         }
 
+        n -= na_count;
         result = calc_median_linear(ptr as *const f64, n, na_count);
         dealloc(ptr, layout.unwrap());
     } else {
