@@ -4,7 +4,7 @@ use crate::algos::take_2d_axis1;
 use crate::groupby::group_median_float64;
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
-use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
 use pyo3::prelude::*;
 use pyo3::PyResult;
 use std::cell::UnsafeCell;
@@ -219,21 +219,21 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyo3(name = "group_median_float64")]
     fn group_median_float64_py<'py>(
         mut out: PyReadwriteArray2<f64>,
-        counts: PyReadonlyArray1<i64>,
+        mut counts: PyReadwriteArray1<i64>,
         values: PyReadonlyArray2<f64>,
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
-        mask: PyReadonlyArray2<u8>,
-        mut result_mask: PyReadwriteArray2<u8>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        mut result_mask: Option<PyReadwriteArray2<u8>>,
     ) {
         group_median_float64(
             out.as_array_mut(),
-            counts.as_array(),
+            counts.as_array_mut(),
             values.as_array(),
             labels.as_array(),
             min_count,
-            mask.as_array(),
-            result_mask.as_array_mut(),
+            mask,
+            result_mask,
         )
     }
 

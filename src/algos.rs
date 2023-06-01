@@ -13,7 +13,7 @@ where
         let mut i = left;
         let mut j = m;
 
-        while true {
+        loop {
             while *arr.add(i) < x {
                 i += 1;
             }
