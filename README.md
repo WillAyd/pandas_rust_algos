@@ -91,3 +91,15 @@ cumsum - can reuse above variables; performance of this seems to be slower after
 
 assert (result1 == result2).all()
 ```
+
+group_shift_indexer - performance about the same
+
+```python
+result1 = np.empty((N,), dtype="int64")
+result2 = np.empty((N,), dtype="int64")
+
+%timeit libgroupby.group_shift_indexer(result1, comp_ids, ngroups, 1)
+%timeit pra.group_shift_indexer(result2, comp_ids, ngroups, 1)
+
+assert (result1 == result2).all()
+```

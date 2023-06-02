@@ -1,6 +1,6 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use num::traits::{One, Zero};
-use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem::size_of;
@@ -546,6 +546,65 @@ pub fn group_cumsum<T>(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+pub fn group_shift_indexer(
+    mut out: ArrayViewMut1<i64>,
+    labels: ArrayView1<i64>,
+    ngroups: i64,
+    periods: i64,
+) {
+    let dim = labels.shape();
+    let n = dim[0];
+    let mut periods_m = periods;
+    let offset: isize;
+    let sign: isize;
+
+    if periods_m < 0 {
+        periods_m = -periods_m;
+        offset = (n - 1) as isize;
+        sign = -1;
+    } else {
+        offset = 0;
+        sign = 1;
+    }
+
+    if periods_m == 0 {
+        for i in 0..n {
+            unsafe {
+                *out.uget_mut(i) = i as i64;
+            }
+        }
+    } else {
+        let mut label_seen = Array1::<i64>::zeros(ngroups as usize);
+        let mut label_indexer = Array2::<i64>::zeros((ngroups as usize, periods_m as usize));
+        for i in 0..n {
+            // reverse iterator if shifting backwards
+            let ii = offset + sign * (i as isize);
+            unsafe {
+                let lab = *labels.uget(ii as usize);
+
+                // skip null keys
+                if lab == -1 {
+                    *out.uget_mut(ii as usize) = -1;
+                    continue;
+                }
+
+                *label_seen.uget_mut(lab as usize) += 1;
+
+                let idxer_slot = *label_seen.uget(lab as usize) % periods_m;
+                let idxer = *label_indexer.uget((lab as usize, idxer_slot as usize));
+
+                if *label_seen.uget(lab as usize) > periods_m {
+                    *out.uget_mut(ii as usize) = idxer;
+                } else {
+                    *out.uget_mut(ii as usize) = -1;
+                }
+
+                *label_indexer.uget_mut((lab as usize, idxer_slot as usize)) = ii as i64;
             }
         }
     }
