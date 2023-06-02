@@ -54,3 +54,31 @@ result_mask = None
 
 assert (result1 == result2).all()
 ```
+
+
+cumprod - this is currently slower than Cython by ~33%
+
+```python
+import numpy as np
+import pandas._libs.groupby as libgroupby
+import pandas_rust_algos as pra
+
+N = 10_000
+ngroups = 50
+result1 = np.empty((N, 1), dtype="float64")
+result2 = np.empty((N, 1), dtype="float64")
+
+np.random.seed(42)
+values = np.random.rand(N, 1)
+np.random.seed(42)
+comp_ids = np.random.randint(ngroups, size=(N,))
+min_count = -1
+mask = None
+result_mask = None
+    
+# might not be able to supply mask / result_mask depending on version of pandas
+%timeit libgroupby.group_cumprod_float64(result1, values, comp_ids, ngroups, False, False)
+%timeit pra.group_cumprod(result2, values, comp_ids, ngroups, False, False, mask, result_mask)
+
+assert (result1 == result2).all()
+```

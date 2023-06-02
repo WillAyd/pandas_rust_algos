@@ -174,3 +174,116 @@ pub fn group_median_float64(
         }
     }
 }
+
+///
+/// Cumulative product of columns of `values`, in row groups `labels`.
+///
+/// Parameters
+/// ----------
+/// out : np.ndarray[np.float64, ndim=2]
+///     Array to store cumprod in.
+/// values : np.ndarray[np.float64, ndim=2]
+///     Values to take cumprod of.
+/// labels : np.ndarray[np.intp]
+///     Labels to group by.
+/// ngroups : int
+///     Number of groups, larger than all entries of `labels`.
+/// is_datetimelike : bool
+///     Always false, `values` is never datetime-like.
+/// skipna : bool
+///     If true, ignore nans in `values`.
+/// mask : np.ndarray[uint8], optional
+///     Mask of values
+/// result_mask : np.ndarray[int8], optional
+///     Mask of out array
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter, rather than returning an object.
+pub fn group_cumprod(
+    mut out: ArrayViewMut2<f64>,
+    values: ArrayView2<f64>,
+    labels: ArrayView1<i64>,
+    ngroups: i64,
+    is_datetimelike: bool,
+    skipna: bool,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+) {
+    let dim = values.raw_dim();
+    let n = dim[0];
+    let k = dim[1];
+
+    let mut accum = Array2::<f64>::ones((ngroups as usize, k));
+    let na_val = f64::NAN;
+    let mut accum_mask = Array2::<u8>::zeros((ngroups as usize, k));
+
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = *mask.uget((i, j)) == 0;
+                        if !isna_entry {
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
+                            if isna_prev {
+                                *out.uget_mut((i, j)) = na_val;
+                                *result_mask.uget_mut((i, j)) = 1;
+                            } else {
+                                *accum.uget_mut((lab as usize, j)) *= val;
+                                *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
+                            }
+                        } else {
+                            *result_mask.uget_mut((i, j)) = 1;
+                            *out.uget_mut((i, j)) = 0.;
+
+                            if !skipna {
+                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        (_, _) => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = val.is_nan();
+                        if !isna_entry {
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
+                            if isna_prev {
+                                *out.uget_mut((i, j)) = na_val;
+                            } else {
+                                *accum.uget_mut((lab as usize, j)) *= val;
+                                *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
+                            }
+                        } else {
+                            *out.uget_mut((i, j)) = f64::NAN;
+
+                            if !skipna {
+                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
