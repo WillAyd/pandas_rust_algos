@@ -56,7 +56,7 @@ assert (result1 == result2).all()
 ```
 
 
-cumprod
+cumprod - this is currently slower than Cython by ~33%
 
 ```python
 import numpy as np

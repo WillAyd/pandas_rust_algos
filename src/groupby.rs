@@ -233,20 +233,20 @@ pub fn group_cumprod(
                         let val = *values.uget((i, j));
                         let isna_entry = *mask.uget((i, j)) == 0;
                         if !isna_entry {
-                            let isna_prev = *accum_mask.uget((lab as usize, j)) == 0;
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
                                 *out.uget_mut((i, j)) = na_val;
                                 *result_mask.uget_mut((i, j)) = 1;
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
-                                *out.uget_mut((i, j)) = val;
+                                *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
                             }
                         } else {
                             *result_mask.uget_mut((i, j)) = 1;
                             *out.uget_mut((i, j)) = 0.;
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) *= na_val;
+                                *accum.uget_mut((lab as usize, j)) = na_val;
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
@@ -266,18 +266,18 @@ pub fn group_cumprod(
                         let val = *values.uget((i, j));
                         let isna_entry = val.is_nan();
                         if !isna_entry {
-                            let isna_prev = *accum_mask.uget((lab as usize, j)) == 0;
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
                                 *out.uget_mut((i, j)) = na_val;
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
-                                *out.uget_mut((i, j)) = val;
+                                *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
                             }
                         } else {
                             *out.uget_mut((i, j)) = f64::NAN;
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) *= na_val;
+                                *accum.uget_mut((lab as usize, j)) = na_val;
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
