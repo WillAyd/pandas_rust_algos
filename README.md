@@ -83,7 +83,7 @@ result_mask = None
 assert (result1 == result2).all()
 ```
 
-cumsum - can reuse above variables; performance of this seems to be a tie
+cumsum - can reuse above variables; performance of this seems to be slower after making generic - bottleneck may be passing arguments?
 
 ```python
 %timeit libgroupby.group_cumsum(result1, values, comp_ids, ngroups, False, False)
