@@ -287,3 +287,139 @@ pub fn group_cumprod(
         }
     }
 }
+
+/// Cumulative sum of columns of `values`, in row groups `labels`.
+///
+/// Parameters
+/// ----------
+/// out : np.ndarray[ndim=2]
+///     Array to store cumsum in.
+/// values : np.ndarray[ndim=2]
+///     Values to take cumsum of.
+/// labels : np.ndarray[np.intp]
+///     Labels to group by.
+/// ngroups : int
+///     Number of groups, larger than all entries of `labels`.
+/// is_datetimelike : bool
+///     True if `values` contains datetime-like entries.
+/// skipna : bool
+///     If true, ignore nans in `values`.
+/// mask : np.ndarray[uint8], optional
+///     Mask of values
+/// result_mask : np.ndarray[int8], optional
+///     Mask of out array
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter, rather than returning an object.
+pub fn group_cumsum(
+    mut out: ArrayViewMut2<f64>,
+    values: ArrayView2<f64>,
+    labels: ArrayView1<i64>,
+    ngroups: i64,
+    is_datetimelike: bool,
+    skipna: bool,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+) {
+    let dim = values.raw_dim();
+    let n = dim[0];
+    let k = dim[1];
+
+    let mut accum = Array2::<f64>::zeros((ngroups as usize, k));
+    let na_val = f64::NAN;
+    let mut compensation = Array2::<f64>::zeros((ngroups as usize, k));
+
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+            let mut accum_mask = Array2::<u8>::zeros((ngroups as usize, k));
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = *mask.uget((i, j)) == 0;
+
+                        if !skipna {
+                            let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
+                            if isna_prev {
+                                *result_mask.uget_mut((i, j)) = 1;
+                                // Be determinisitc, out was initialized as empty
+                                *out.uget_mut((i, j)) = 0.;
+                                continue;
+                            }
+                        }
+
+                        if isna_entry {
+                            *result_mask.uget_mut((i, j)) = 1;
+                            // Be determinisitc, out was initialized as empty
+                            *out.uget_mut((i, j)) = 0.;
+
+                            if !skipna {
+                                *accum_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                        } else {
+                            // For floats, use Kahan summation to reduce floating-point
+                            // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *accum.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *accum.uget((lab as usize, j)) - y;
+
+                            *accum.uget_mut((lab as usize, j)) = t;
+                            *out.uget_mut((i, j)) = t;
+                        }
+                    }
+                }
+            }
+        }
+        (_, _) => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        let isna_entry = val.is_nan();
+
+                        if !skipna {
+                            let isna_prev = (*accum.uget((lab as usize, j))).is_nan();
+                            if isna_prev {
+                                *out.uget_mut((i, j)) = na_val;
+                                continue;
+                            }
+                        }
+
+                        if isna_entry {
+                            *out.uget_mut((i, j)) = na_val;
+
+                            if !skipna {
+                                *accum.uget_mut((lab as usize, j)) = na_val;
+                            }
+                        } else {
+                            // For floats, use Kahan summation to reduce floating-point
+                            // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *accum.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *accum.uget((lab as usize, j)) - y;
+
+                            *accum.uget_mut((lab as usize, j)) = t;
+                            *out.uget_mut((i, j)) = t;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
