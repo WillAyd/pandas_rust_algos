@@ -82,3 +82,12 @@ result_mask = None
 
 assert (result1 == result2).all()
 ```
+
+cumsum - can reuse above variables; performance of this seems to be a tie
+
+```python
+%timeit libgroupby.group_cumsum(result1, values, comp_ids, ngroups, False, False)
+%timeit pra.group_cumsum(result2, values, comp_ids, ngroups, False, False, mask, result_mask)
+
+assert (result1 == result2).all()
+```
