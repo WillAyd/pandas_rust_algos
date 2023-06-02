@@ -860,14 +860,14 @@ fn check_below_mincount<T>(
 
 /// Only aggregates on axis=0 using Kahan summation
 pub fn group_sum<T>(
-    mut out: ArrayViewMut2<T>,
+    out: ArrayViewMut2<T>,
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    mask: ArrayView2<u8>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
     min_count: isize,
-    _is_datetimelike: bool,
+    is_datetimelike: bool,
 ) where
     T: PandasNA + Zero + One + Clone + Copy + std::ops::Sub<Output = T> + std::ops::Add<Output = T>,
 {
@@ -886,24 +886,52 @@ pub fn group_sum<T>(
     let k = values_shape[1];
 
     // For now we haven't implemented the PyObject case - do we need to?
-    // also unclear why Cython has a uses_mask check
-    for i in 0..n {
-        unsafe {
-            let lab = *labels.uget(i);
-            if lab < 0 {
-                continue;
-            }
 
-            *counts.uget_mut(lab as usize) += 1;
-            for j in 0..k {
-                let val = *values.uget((i, j));
-                if *mask.uget((i, j)) == 0 {
-                    *nobs.uget_mut((lab as usize, j)) += 1;
-                    let y = val - *compensation.uget((lab as usize, j));
-                    let t = *sumx.uget((lab as usize, j)) + y;
-                    *compensation.uget_mut((lab as usize, j)) =
-                        t - *sumx.uget((lab as usize, j)) - y;
-                    *sumx.uget_mut((lab as usize, j)) = t;
+    match py_mask {
+        Some(ref py_mask) => {
+            let mask = py_mask.as_array();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
                 }
             }
         }
@@ -911,12 +939,92 @@ pub fn group_sum<T>(
 
     check_below_mincount(
         out,
-        true,
+        !py_mask.is_none(),
         py_result_mask,
         counts.len() as isize,
         k as isize,
         nobs.view(),
         min_count.try_into().unwrap(),
         sumx.view(),
+    );
+}
+
+pub fn group_prod<T>(
+    out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    min_count: isize,
+) where
+    T: PandasNA + Zero + One + Clone + Copy + std::ops::MulAssign + std::ops::Add<Output = T>,
+{
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    // the below is equivalent to `np.zeros_like(out)` but faster
+    let mut prodx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    match py_mask {
+        Some(ref py_mask) => {
+            let mask = py_mask.as_array();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            *prodx.uget_mut((lab as usize, j)) *= val;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        // No is_datetimelike in group_prod signature...
+                        if !val.isna(false) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            *prodx.uget_mut((lab as usize, j)) *= val;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        counts.len() as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        prodx.view(),
     );
 }
