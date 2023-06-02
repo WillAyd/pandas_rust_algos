@@ -5,7 +5,7 @@ use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 
-unsafe fn calc_median_linear(a: *const f64, n: i64, na_count: i64) -> f64 {
+unsafe fn calc_median_linear(a: *const f64, n: i64) -> f64 {
     let result;
     let halfway = (n / 2) as usize;
     if (n % 2) > 0 {
@@ -52,10 +52,10 @@ unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const u8) -> f64 
         }
 
         n -= na_count;
-        result = calc_median_linear(ptr as *const f64, n, na_count);
+        result = calc_median_linear(ptr as *const f64, n);
         dealloc(ptr, layout.unwrap());
     } else {
-        result = calc_median_linear(a, n, 0);
+        result = calc_median_linear(a, n);
     }
 
     result
@@ -94,10 +94,10 @@ unsafe fn median_linear(a: *const f64, mut n: i64) -> f64 {
         }
 
         n -= na_count;
-        result = calc_median_linear(ptr as *const f64, n, na_count);
+        result = calc_median_linear(ptr as *const f64, n);
         dealloc(ptr, layout.unwrap());
     } else {
-        result = calc_median_linear(a, n, 0);
+        result = calc_median_linear(a, n);
     }
 
     result
