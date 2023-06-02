@@ -1,9 +1,52 @@
+use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
+use num::traits::{One, Zero};
+use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem::size_of;
 
-use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
-use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
-use numpy::{PyReadonlyArray2, PyReadwriteArray2};
+pub trait PandasNA {
+    fn na_val(is_datetimelike: bool) -> Self;
+    fn isna(&self, is_datetimelike: bool) -> bool;
+}
+
+impl PandasNA for f64 {
+    fn na_val(_is_datetimelike: bool) -> Self {
+        f64::NAN
+    }
+
+    fn isna(&self, _is_datetimelike: bool) -> bool {
+        self.is_nan()
+    }
+}
+
+impl PandasNA for f32 {
+    fn na_val(_is_datetimelike: bool) -> Self {
+        f32::NAN
+    }
+
+    fn isna(&self, _is_datetimelike: bool) -> bool {
+        self.is_nan()
+    }
+}
+
+impl PandasNA for i64 {
+    fn na_val(is_datetimelike: bool) -> Self {
+        if is_datetimelike {
+            i64::MIN
+        } else {
+            0
+        }
+    }
+
+    fn isna(&self, is_datetimelike: bool) -> bool {
+        if is_datetimelike {
+            *self == i64::MIN
+        } else {
+            *self == 0
+        }
+    }
+}
 
 unsafe fn calc_median_linear(a: *const f64, n: i64) -> f64 {
     let result;
@@ -200,22 +243,23 @@ pub fn group_median_float64(
 /// Notes
 /// -----
 /// This method modifies the `out` parameter, rather than returning an object.
-pub fn group_cumprod(
-    mut out: ArrayViewMut2<f64>,
-    values: ArrayView2<f64>,
+pub fn group_cumprod<T>(
+    mut out: ArrayViewMut2<T>,
+    values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     ngroups: i64,
     is_datetimelike: bool,
     skipna: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
-) {
+) where
+    T: Zero + One + Clone + Copy + PandasNA + std::ops::MulAssign,
+{
     let dim = values.raw_dim();
     let n = dim[0];
     let k = dim[1];
 
-    let mut accum = Array2::<f64>::ones((ngroups as usize, k));
-    let na_val = f64::NAN;
+    let mut accum = Array2::<T>::ones((ngroups as usize, k));
     let mut accum_mask = Array2::<u8>::zeros((ngroups as usize, k));
 
     match (py_mask, py_result_mask) {
@@ -235,7 +279,7 @@ pub fn group_cumprod(
                         if !isna_entry {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
                                 *result_mask.uget_mut((i, j)) = 1;
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
@@ -243,10 +287,11 @@ pub fn group_cumprod(
                             }
                         } else {
                             *result_mask.uget_mut((i, j)) = 1;
-                            *out.uget_mut((i, j)) = 0.;
+                            *out.uget_mut((i, j)) = <T as Zero>::zero();
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) =
+                                    <T as PandasNA>::na_val(is_datetimelike);
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
@@ -264,20 +309,21 @@ pub fn group_cumprod(
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        let isna_entry = val.is_nan();
+                        let isna_entry = val.isna(is_datetimelike);
                         if !isna_entry {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
                                 *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
                             }
                         } else {
-                            *out.uget_mut((i, j)) = f64::NAN;
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) =
+                                    <T as PandasNA>::na_val(is_datetimelike);
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
@@ -285,6 +331,85 @@ pub fn group_cumprod(
                 }
             }
         }
+    }
+}
+
+pub trait CumSumAccumulator {
+    fn acummulate<T>(
+        val: T,
+        accum: ArrayView2<T>,
+        compensation: ArrayViewMut2<T>,
+        lab: usize,
+        j: usize,
+    ) -> T
+    where
+        T: std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy;
+}
+
+impl CumSumAccumulator for f64 {
+    // For floats, use Kahan summation to reduce floating-point
+    // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+
+    fn acummulate<T>(
+        val: T,
+        accum: ArrayView2<T>,
+        mut compensation: ArrayViewMut2<T>,
+        lab: usize,
+        j: usize,
+    ) -> T
+    where
+        T: std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy,
+    {
+        let t;
+        unsafe {
+            let y = val - *compensation.uget((lab, j));
+            t = *accum.uget((lab, j)) + y;
+            *compensation.uget_mut((lab, j)) = t - *accum.uget((lab, j)) - y;
+        }
+        t
+    }
+}
+
+impl CumSumAccumulator for f32 {
+    // For floats, use Kahan summation to reduce floating-point
+    // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+
+    fn acummulate<T>(
+        val: T,
+        accum: ArrayView2<T>,
+        mut compensation: ArrayViewMut2<T>,
+        lab: usize,
+        j: usize,
+    ) -> T
+    where
+        T: std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy,
+    {
+        let t;
+        unsafe {
+            let y = val - *compensation.uget((lab, j));
+            t = *accum.uget((lab, j)) + y;
+            *compensation.uget_mut((lab, j)) = t - *accum.uget((lab, j)) - y;
+        }
+        t
+    }
+}
+
+impl CumSumAccumulator for i64 {
+    fn acummulate<T>(
+        val: T,
+        accum: ArrayView2<T>,
+        mut _compensation: ArrayViewMut2<T>,
+        lab: usize,
+        j: usize,
+    ) -> T
+    where
+        T: std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy,
+    {
+        let t;
+        unsafe {
+            t = val + *accum.uget((lab, j));
+        }
+        t
     }
 }
 
@@ -312,23 +437,24 @@ pub fn group_cumprod(
 /// Notes
 /// -----
 /// This method modifies the `out` parameter, rather than returning an object.
-pub fn group_cumsum(
-    mut out: ArrayViewMut2<f64>,
-    values: ArrayView2<f64>,
+pub fn group_cumsum<T>(
+    mut out: ArrayViewMut2<T>,
+    values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     ngroups: i64,
     is_datetimelike: bool,
     skipna: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
-) {
+) where
+    T: Zero + One + Clone + Copy + PandasNA + std::ops::Sub<Output = T> + CumSumAccumulator,
+{
     let dim = values.raw_dim();
     let n = dim[0];
     let k = dim[1];
 
-    let mut accum = Array2::<f64>::zeros((ngroups as usize, k));
-    let na_val = f64::NAN;
-    let mut compensation = Array2::<f64>::zeros((ngroups as usize, k));
+    let mut accum = Array2::<T>::zeros((ngroups as usize, k));
+    let mut compensation = Array2::<T>::zeros((ngroups as usize, k));
 
     match (py_mask, py_result_mask) {
         (Some(py_mask), Some(mut py_result_mask)) => {
@@ -352,7 +478,7 @@ pub fn group_cumsum(
                             if isna_prev {
                                 *result_mask.uget_mut((i, j)) = 1;
                                 // Be determinisitc, out was initialized as empty
-                                *out.uget_mut((i, j)) = 0.;
+                                *out.uget_mut((i, j)) = <T as Zero>::zero();
                                 continue;
                             }
                         }
@@ -360,19 +486,19 @@ pub fn group_cumsum(
                         if isna_entry {
                             *result_mask.uget_mut((i, j)) = 1;
                             // Be determinisitc, out was initialized as empty
-                            *out.uget_mut((i, j)) = 0.;
+                            *out.uget_mut((i, j)) = <T as Zero>::zero();
 
                             if !skipna {
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         } else {
-                            // For floats, use Kahan summation to reduce floating-point
-                            // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *accum.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *accum.uget((lab as usize, j)) - y;
-
+                            let t = T::acummulate(
+                                val,
+                                accum.view(),
+                                compensation.view_mut(),
+                                lab as usize,
+                                j,
+                            );
                             *accum.uget_mut((lab as usize, j)) = t;
                             *out.uget_mut((i, j)) = t;
                         }
@@ -390,30 +516,31 @@ pub fn group_cumsum(
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        let isna_entry = val.is_nan();
+                        let isna_entry = val.isna(is_datetimelike);
 
                         if !skipna {
-                            let isna_prev = (*accum.uget((lab as usize, j))).is_nan();
+                            let isna_prev = (*accum.uget((lab as usize, j))).isna(is_datetimelike);
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
                                 continue;
                             }
                         }
 
                         if isna_entry {
-                            *out.uget_mut((i, j)) = na_val;
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) =
+                                    <T as PandasNA>::na_val(is_datetimelike);
                             }
                         } else {
-                            // For floats, use Kahan summation to reduce floating-point
-                            // error (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *accum.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *accum.uget((lab as usize, j)) - y;
-
+                            let t = T::acummulate(
+                                val,
+                                accum.view(),
+                                compensation.view_mut(),
+                                lab as usize,
+                                j,
+                            );
                             *accum.uget_mut((lab as usize, j)) = t;
                             *out.uget_mut((i, j)) = t;
                         }

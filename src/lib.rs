@@ -1,7 +1,10 @@
 mod algos;
 mod groupby;
+mod types;
+
 use crate::algos::take_2d_axis1;
 use crate::groupby::{group_cumprod, group_cumsum, group_median_float64};
+use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
@@ -243,8 +246,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     // this is currently just float; we likely want a custom type trait
     // to serve the NA value for ints versus float objects
     fn group_cumprod_py<'py>(
-        mut out: PyReadwriteArray2<f64>,
-        values: PyReadonlyArray2<f64>,
+        out: NumericArray2,
+        values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
@@ -252,16 +255,43 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
     ) {
-        group_cumprod(
-            out.as_array_mut(),
-            values.as_array(),
-            labels.as_array(),
-            ngroups,
-            is_datetimelike,
-            skipna,
-            mask,
-            result_mask,
-        )
+        match (out, values) {
+            // TODO: pretty hard to dispatch here; PyO3 does not allow for a generic type
+            // match arms must all have the same resulting expression types, and a
+            // closure does not seem to work; so we repeat the same function for
+            // all allowed values...
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_cumprod(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_cumprod(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_cumprod(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            _ => panic!("Unsupported argument types to cumprod!"),
+        }
     }
 
     #[pyfn(m)]
@@ -270,8 +300,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     // this is currently just float; we likely want a custom type trait
     // to serve the NA value for ints versus float objects
     fn group_cumsum_py<'py>(
-        mut out: PyReadwriteArray2<f64>,
-        values: PyReadonlyArray2<f64>,
+        out: NumericArray2,
+        values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
@@ -279,16 +309,43 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
     ) {
-        group_cumsum(
-            out.as_array_mut(),
-            values.as_array(),
-            labels.as_array(),
-            ngroups,
-            is_datetimelike,
-            skipna,
-            mask,
-            result_mask,
-        )
+        match (out, values) {
+            // TODO: pretty hard to dispatch here; PyO3 does not allow for a generic type
+            // match arms must all have the same resulting expression types, and a
+            // closure does not seem to work; so we repeat the same function for
+            // all allowed values...
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_cumsum(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_cumsum(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_cumsum(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna,
+                mask,
+                result_mask,
+            ),
+            _ => panic!("Unsupported argument types to cumsum!"),
+        }
     }
 
     Ok(())
