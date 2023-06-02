@@ -5,6 +5,32 @@ use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use numpy::ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 
+trait NaVals<T> {
+    fn na_val(&self, is_datetimelike: bool) -> T;
+}
+
+impl NaVals<f64> for f64 {
+    fn na_val(&self, is_datetimelike: bool) -> f64 {
+        f64::NAN
+    }
+}
+
+impl NaVals<f32> for f32 {
+    fn na_val(&self, is_datetimelike: bool) -> f32 {
+        f32::NAN
+    }
+}
+
+impl NaVals<i64> for i64 {
+    fn na_val(&self, is_datetimelike: bool) -> i64 {
+        if is_datetimelike {
+            i64::MIN
+        } else {
+            0
+        }
+    }
+}
+
 unsafe fn calc_median_linear(a: *const f64, n: i64) -> f64 {
     let result;
     let halfway = (n / 2) as usize;
@@ -215,7 +241,6 @@ pub fn group_cumprod(
     let k = dim[1];
 
     let mut accum = Array2::<f64>::ones((ngroups as usize, k));
-    let na_val = f64::NAN;
     let mut accum_mask = Array2::<u8>::zeros((ngroups as usize, k));
 
     match (py_mask, py_result_mask) {
@@ -235,7 +260,7 @@ pub fn group_cumprod(
                         if !isna_entry {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = val.na_val(is_datetimelike);
                                 *result_mask.uget_mut((i, j)) = 1;
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
@@ -246,7 +271,7 @@ pub fn group_cumprod(
                             *out.uget_mut((i, j)) = 0.;
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) = val.na_val(is_datetimelike);
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
@@ -268,16 +293,16 @@ pub fn group_cumprod(
                         if !isna_entry {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = val.na_val(is_datetimelike);
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
                                 *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
                             }
                         } else {
-                            *out.uget_mut((i, j)) = f64::NAN;
+                            *out.uget_mut((i, j)) = val.na_val(is_datetimelike);
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) = val.na_val(is_datetimelike);
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         }
@@ -327,7 +352,6 @@ pub fn group_cumsum(
     let k = dim[1];
 
     let mut accum = Array2::<f64>::zeros((ngroups as usize, k));
-    let na_val = f64::NAN;
     let mut compensation = Array2::<f64>::zeros((ngroups as usize, k));
 
     match (py_mask, py_result_mask) {
@@ -395,16 +419,16 @@ pub fn group_cumsum(
                         if !skipna {
                             let isna_prev = (*accum.uget((lab as usize, j))).is_nan();
                             if isna_prev {
-                                *out.uget_mut((i, j)) = na_val;
+                                *out.uget_mut((i, j)) = val.na_val(is_datetimelike);
                                 continue;
                             }
                         }
 
                         if isna_entry {
-                            *out.uget_mut((i, j)) = na_val;
+                            *out.uget_mut((i, j)) = val.na_val(is_datetimelike);
 
                             if !skipna {
-                                *accum.uget_mut((lab as usize, j)) = na_val;
+                                *accum.uget_mut((lab as usize, j)) = val.na_val(is_datetimelike);
                             }
                         } else {
                             // For floats, use Kahan summation to reduce floating-point
