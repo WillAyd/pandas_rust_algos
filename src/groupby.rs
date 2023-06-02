@@ -798,3 +798,125 @@ pub fn group_any_all(
         }
     }
 }
+
+/// Check if the number of observations for a group is below min_count,
+/// and if so set the result for that group to the appropriate NA-like value.
+fn check_below_mincount<T>(
+    mut out: ArrayViewMut2<T>,
+    _uses_mask: bool,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ncounts: isize,
+    k: isize,
+    nobs: ArrayView2<i64>,
+    min_count: i64,
+    resx: ArrayView2<T>,
+) where
+    T: PandasNA + Zero + Copy,
+{
+    match py_result_mask {
+        Some(mut py_result_mask) => {
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i as usize, j as usize)) < min_count {
+                            //  if we are integer dtype, not is_datetimelike, and
+                            //  not uses_mask, then getting here implies that
+                            //  counts[i] < min_count, which means we will
+                            //  be cast to float64 and masked at the end
+                            //  of WrappedCythonOp._call_cython_op. So we can safely
+                            //  set a placeholder value in out[i, j].
+                            *result_mask.uget_mut((i as usize, j as usize)) = 1;
+                            // set out[i, j] to 0 to be deterministic, as
+                            // it was initialized with np.empty. Also ensures
+                            //  we can downcast out if appropriate.
+                            *out.uget_mut((i as usize, j as usize)) = <T as Zero>::zero();
+                        } else {
+                            *out.uget_mut((i as usize, j as usize)) =
+                                *resx.uget((i as usize, j as usize));
+                        }
+                    }
+                }
+            }
+        }
+        None => {
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i as usize, j as usize)) < min_count {
+                            // TODO: is_datetimelike never makes it here, but why not?
+                            *out.uget_mut((i as usize, j as usize)) = T::na_val(false);
+                        } else {
+                            *out.uget_mut((i as usize, j as usize)) =
+                                *resx.uget((i as usize, j as usize));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Only aggregates on axis=0 using Kahan summation
+pub fn group_sum<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    mask: ArrayView2<u8>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    min_count: isize,
+    _is_datetimelike: bool,
+) where
+    T: PandasNA + Zero + One + Clone + Copy + std::ops::Sub<Output = T> + std::ops::Add<Output = T>,
+{
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    // the below is equivalent to `np.zeros_like(out)` but faster
+    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    // For now we haven't implemented the PyObject case - do we need to?
+    // also unclear why Cython has a uses_mask check
+    for i in 0..n {
+        unsafe {
+            let lab = *labels.uget(i);
+            if lab < 0 {
+                continue;
+            }
+
+            *counts.uget_mut(lab as usize) += 1;
+            for j in 0..k {
+                let val = *values.uget((i, j));
+                if *mask.uget((i, j)) == 0 {
+                    *nobs.uget_mut((lab as usize, j)) += 1;
+                    let y = val - *compensation.uget((lab as usize, j));
+                    let t = *sumx.uget((lab as usize, j)) + y;
+                    *compensation.uget_mut((lab as usize, j)) =
+                        t - *sumx.uget((lab as usize, j)) - y;
+                    *sumx.uget_mut((lab as usize, j)) = t;
+                }
+            }
+        }
+    }
+
+    check_below_mincount(
+        out,
+        true,
+        py_result_mask,
+        counts.len() as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        sumx.view(),
+    );
+}
