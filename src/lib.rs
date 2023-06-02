@@ -4,7 +4,8 @@ mod types;
 
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
-    group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64, group_shift_indexer,
+    group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64,
+    group_shift_indexer,
 };
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
@@ -378,6 +379,28 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             mask.as_array(),
             limit,
             dropna,
+        );
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_any_all")]
+    fn group_any_all_py<'py>(
+        mut out: PyReadwriteArray2<i8>,
+        values: PyReadonlyArray2<i8>,
+        labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray2<u8>,
+        val_test: String,
+        skipna: bool,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) {
+        group_any_all(
+            out.as_array_mut(),
+            values.as_array(),
+            labels.as_array(),
+            mask.as_array(),
+            val_test,
+            skipna,
+            py_result_mask,
         );
     }
 

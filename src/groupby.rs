@@ -683,3 +683,118 @@ pub fn group_fillna_indexer(
         }
     }
 }
+
+/// Aggregated boolean values to show truthfulness of group elements. If the
+/// input is a nullable type (result_mask is not None), the result will be computed
+/// using Kleene logic.
+/// Parameters
+/// ----------
+/// out : np.ndarray[np.int8]
+///     Values into which this method will write its results.
+/// labels : np.ndarray[np.intp]
+///     Array containing unique label for each group, with its
+///     ordering matching up to the corresponding record in `values`
+/// values : np.ndarray[np.int8]
+///     Containing the truth value of each element.
+/// mask : np.ndarray[np.uint8]
+///     Indicating whether a value is na or not.
+/// val_test : {'any', 'all'}
+///     String object dictating whether to use any or all truth testing
+/// skipna : bool
+///     Flag to ignore nan values during truth testing
+/// result_mask : ndarray[bool, ndim=2], optional
+///     If not None, these specify locations in the output that are NA.
+///     Modified in-place.
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter rather than returning an object.
+/// The returned values will either be 0, 1 (False or True, respectively), or
+/// -1 to signify a masked position in the case of a nullable input.
+pub fn group_any_all(
+    mut out: ArrayViewMut2<i8>,
+    values: ArrayView2<i8>,
+    labels: ArrayView1<i64>,
+    mask: ArrayView2<u8>,
+    val_test: String,
+    skipna: bool,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+) {
+    let n = labels.len();
+    let out_dim = out.shape();
+    let k = out_dim[1];
+
+    let flag_val: bool;
+    if val_test == "all" {
+        flag_val = false;
+        out.fill(1);
+    } else if val_test == "any" {
+        flag_val = true;
+        out.fill(0);
+    } else {
+        panic!("'val_test' must be either 'any' or 'all'!");
+    }
+
+    match py_result_mask {
+        Some(mut py_result_mask) => {
+            let mut result_mask = py_result_mask.as_array_mut();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if skipna & (*mask.uget((i, j)) == 1) {
+                            continue;
+                        }
+
+                        if *mask.uget((i, j)) == 1 {
+                            // Set the position as masked if `out[lab] != flag_val`, which
+                            // would indicate True/False has not yet been seen for any/all,
+                            // so by Kleene logic the result is currently unknown
+                            if *out.uget((lab as usize, j)) != flag_val as i8 {
+                                *result_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                            continue;
+                        }
+
+                        let val = *values.uget((i, j));
+
+                        // If True and 'any' or False and 'all', the result is
+                        // already determined
+                        if val == flag_val as i8 {
+                            *out.uget_mut((lab as usize, j)) = flag_val as i8;
+                            *result_mask.uget_mut((lab as usize, j)) = 0;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if skipna & (*mask.uget((i, j)) == 1) {
+                            continue;
+                        }
+
+                        let val = *values.uget((i, j));
+
+                        // If True and 'any' or False and 'all', the result is
+                        // already determined
+                        if val == flag_val as i8 {
+                            *out.uget_mut((lab as usize, j)) = flag_val as i8;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
