@@ -609,3 +609,77 @@ pub fn group_shift_indexer(
         }
     }
 }
+
+/// Indexes how to fill values forwards or backwards within a group.
+///
+/// Parameters
+/// ----------
+/// out : np.ndarray[np.intp]
+///     Values into which this method will write its results.
+/// labels : np.ndarray[np.intp]
+///     Array containing unique label for each group, with its ordering
+///     matching up to the corresponding record in `values`.
+/// sorted_labels : np.ndarray[np.intp]
+///     obtained by `np.argsort(labels, kind="mergesort")`; reversed if
+///     direction == "bfill"
+/// values : np.ndarray[np.uint8]
+///     Containing the truth value of each element.
+/// mask : np.ndarray[np.uint8]
+///     Indicating whether a value is na or not.
+/// direction : {'ffill', 'bfill'}
+///     Direction for fill to be applied (forwards or backwards, respectively)
+/// limit : Consecutive values to fill before stopping, or -1 for no limit
+/// dropna : Flag to indicate if NaN groups should return all NaN values
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter rather than returning an object
+pub fn group_fillna_indexer(
+    mut out: ArrayViewMut1<i64>,
+    labels: ArrayView1<i64>,
+    sorted_labels: ArrayView1<i64>,
+    mask: ArrayView1<u8>,
+    limit: i64,
+    dropna: bool,
+) {
+    let n = out.len();
+
+    // make sure all arrays are the same size
+    if !((n == labels.len()) & (n == mask.len())) {
+        panic!("Not all arrays are the same size!");
+    }
+
+    let mut filled_vals = 0;
+    let mut curr_fill_idx = -1;
+
+    for i in 0..n {
+        unsafe {
+            let idx = *sorted_labels.uget(1);
+            if dropna & (*labels.uget(idx as usize) == -1) {
+                curr_fill_idx = -1;
+            } else if *mask.uget(idx as usize) == 1 {
+                // is missing
+                // Stop filling once we've hit the limit
+                if (filled_vals >= limit) & (limit != -1) {
+                    curr_fill_idx = -1;
+                }
+                filled_vals += 1;
+            } else {
+                // reset items when not missing
+                filled_vals = 0;
+                curr_fill_idx = idx;
+            }
+
+            *out.uget_mut(idx as usize) = curr_fill_idx;
+
+            // If we move to the next group, reset
+            // the fill_idx and counter
+            if (i == n)
+                | (*labels.uget(idx as usize) != *labels.uget(*sorted_labels.uget(i + 1) as usize))
+            {
+                curr_fill_idx = -1;
+                filled_vals = 0;
+            }
+        }
+    }
+}

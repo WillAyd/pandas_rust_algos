@@ -3,7 +3,9 @@ mod groupby;
 mod types;
 
 use crate::algos::take_2d_axis1;
-use crate::groupby::{group_cumprod, group_cumsum, group_median_float64, group_shift_indexer};
+use crate::groupby::{
+    group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64, group_shift_indexer,
+};
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
@@ -357,6 +359,26 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         periods: i64,
     ) {
         group_shift_indexer(out.as_array_mut(), labels.as_array(), ngroups, periods);
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_fillna_indexer")]
+    fn group_fillna_indexer_py<'py>(
+        mut out: PyReadwriteArray1<i64>,
+        labels: PyReadonlyArray1<i64>,
+        sorted_labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray1<u8>,
+        limit: i64,
+        dropna: bool,
+    ) {
+        group_fillna_indexer(
+            out.as_array_mut(),
+            labels.as_array(),
+            sorted_labels.as_array(),
+            mask.as_array(),
+            limit,
+            dropna,
+        );
     }
 
     Ok(())
