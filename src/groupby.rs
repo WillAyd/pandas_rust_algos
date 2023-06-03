@@ -1,5 +1,5 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
-use num::traits::{One, Zero};
+use num::traits::{NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
@@ -860,12 +860,12 @@ fn check_below_mincount<T>(
 
 /// Only aggregates on axis=0 using Kahan summation
 pub fn group_sum<T>(
-    out: ArrayViewMut2<T>,
+    mut out: ArrayViewMut2<T>,
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
     min_count: isize,
     is_datetimelike: bool,
 ) where
@@ -875,6 +875,7 @@ pub fn group_sum<T>(
         panic!("len(index) != len(labels)");
     }
 
+    let ncounts = counts.len();
     let out_dim = out.shape();
     let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
     // the below is equivalent to `np.zeros_like(out)` but faster
@@ -886,10 +887,11 @@ pub fn group_sum<T>(
     let k = values_shape[1];
 
     // For now we haven't implemented the PyObject case - do we need to?
-
-    match py_mask {
-        Some(ref py_mask) => {
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
             let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
             for i in 0..n {
                 unsafe {
                     let lab = *labels.uget(i);
@@ -907,6 +909,18 @@ pub fn group_sum<T>(
                             *compensation.uget_mut((lab as usize, j)) =
                                 t - *sumx.uget((lab as usize, j)) - y;
                             *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *result_mask.uget_mut((i, j)) = 1;
+                        } else {
+                            *out.uget_mut((i, j)) = *sumx.uget((i, j));
                         }
                     }
                 }
@@ -930,6 +944,18 @@ pub fn group_sum<T>(
                             *compensation.uget_mut((lab as usize, j)) =
                                 t - *sumx.uget((lab as usize, j)) - y;
                             *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
+                        } else {
+                            *out.uget_mut((i, j)) = *sumx.uget((i, j));
                         }
                     }
                 }
@@ -1317,4 +1343,134 @@ pub fn group_skew(
             }
         }
     }
+}
+
+/// Only aggregates on axis=0 using Kahan summation
+pub fn group_mean<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    min_count: isize,
+    is_datetimelike: bool,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+) where
+    T: PandasNA
+        + Zero
+        + One
+        + Clone
+        + Copy
+        + std::ops::Sub<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Div<Output = T>
+        + num::NumCast,
+{
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let ncounts = counts.len();
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    // the below is equivalent to `np.zeros_like(out)` but faster
+    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    // For now we haven't implemented the PyObject case - do we need to?
+
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        let count = *nobs.uget((i, j));
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *result_mask.uget_mut((i, j)) = 1;
+                        } else {
+                            *out.uget_mut((i, j)) =
+                                *sumx.uget((i, j)) / NumCast::from(count).unwrap();
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        let count = *nobs.uget((i, j));
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
+                        } else {
+                            *out.uget_mut((i, j)) =
+                                *sumx.uget((i, j)) / NumCast::from(count).unwrap();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        counts.len() as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        sumx.view(),
+    );
 }
