@@ -3,6 +3,7 @@ use num::traits::{NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
+use std::cmp;
 use std::mem::size_of;
 
 pub trait PandasNA {
@@ -1473,4 +1474,113 @@ pub fn group_mean<T>(
         min_count.try_into().unwrap(),
         sumx.view(),
     );
+}
+
+pub fn group_ohlc<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    min_count: isize,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+) where
+    T: PandasNA + Zero + Clone + Copy + Ord,
+{
+    if min_count != -1 {
+        panic!("'min_count' only used in sum and prod");
+    }
+
+    if labels.len() == 0 {
+        return;
+    }
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    if out.shape()[1] != 4 {
+        panic!("Output array must have 4 columns");
+    }
+
+    if k > 1 {
+        panic!("Argument 'values' must have only one dimension");
+    }
+
+    let mut first_element_set = Array1::<u8>::zeros(counts.len());
+
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+            result_mask.fill(1);
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab == -1 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    let val = *values.uget((i, 0));
+                    let isna_entry = *mask.uget((i, 0));
+                    if isna_entry == 1 {
+                        continue;
+                    }
+
+                    if *first_element_set.uget(lab as usize) == 0 {
+                        *out.uget_mut((lab as usize, 0)) = val;
+                        *out.uget_mut((lab as usize, 1)) = val;
+                        *out.uget_mut((lab as usize, 2)) = val;
+                        *out.uget_mut((lab as usize, 3)) = val;
+                        *first_element_set.uget_mut(lab as usize) = 1;
+
+                        // TODO: can we replace this with a slice?
+                        *result_mask.uget_mut((lab as usize, 0)) = 0;
+                        *result_mask.uget_mut((lab as usize, 1)) = 0;
+                        *result_mask.uget_mut((lab as usize, 2)) = 0;
+                        *result_mask.uget_mut((lab as usize, 3)) = 0;
+                    } else {
+                        *out.uget_mut((lab as usize, 1)) =
+                            cmp::max(*out.uget((lab as usize, 1)), val);
+                        *out.uget_mut((lab as usize, 2)) =
+                            cmp::min(*out.uget((lab as usize, 2)), val);
+                        *out.uget_mut((lab as usize, 3)) = val;
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab == -1 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    let val = *values.uget((i, 0));
+                    let isna_entry = val.isna(false); // no is_datetimelike arg
+                    if isna_entry {
+                        continue;
+                    }
+
+                    if *first_element_set.uget(lab as usize) == 0 {
+                        *out.uget_mut((lab as usize, 0)) = val;
+                        *out.uget_mut((lab as usize, 1)) = val;
+                        *out.uget_mut((lab as usize, 2)) = val;
+                        *out.uget_mut((lab as usize, 3)) = val;
+                        *first_element_set.uget_mut(lab as usize) = 1;
+                    } else {
+                        *out.uget_mut((lab as usize, 1)) =
+                            cmp::max(*out.uget((lab as usize, 1)), val);
+                        *out.uget_mut((lab as usize, 2)) =
+                            cmp::min(*out.uget((lab as usize, 2)), val);
+                        *out.uget_mut((lab as usize, 3)) = val;
+                    }
+                }
+            }
+        }
+    }
 }
