@@ -11,6 +11,7 @@ use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
+use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
 use pyo3::PyResult;
 use std::cell::UnsafeCell;
@@ -547,6 +548,157 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             py_result_mask,
             skipna,
         )
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_mean")]
+    fn group_mean_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        is_datetimelike: bool,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_ohlc")]
+    fn group_ohlc_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_quantile")]
+    fn group_quantile_py<'py>(
+        out: PyReadwriteArray2<f64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray1<u8>,
+        sort_indexer: PyReadonlyArray1<i64>,
+        qs: PyReadonlyArray1<f64>,
+        interpolation: String,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_last")]
+    fn group_last_py<'py>(
+        out: NumericArray2,
+        counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray2<u8>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        min_count: isize,
+        is_datetimelike: bool,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_nth")]
+    fn group_nth_py<'py>(
+        out: NumericArray2,
+        counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray2<u8>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        min_count: isize,
+        is_datetimelike: bool,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_rank")]
+    fn group_rank_py<'py>(
+        out: PyReadwriteArray2<f64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        ngroups: i64,
+        is_datetimelike: bool,
+        ties_method: String,
+        ascending: bool,
+        pct: bool,
+        na_option: String,
+        mask: PyReadonlyArray2<u8>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_max")]
+    fn group_max_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        is_datetimelike: bool,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_min")]
+    fn group_min_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        is_datetimelike: bool,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_cummin")]
+    fn group_cummin_py<'py>(
+        out: NumericArray2,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        ngroups: i64,
+        is_datetimelike: bool,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        skipna: bool,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_cummax")]
+    fn group_cummax_py<'py>(
+        out: NumericArray2,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        ngroups: i64,
+        is_datetimelike: bool,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        skipna: bool,
+    ) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err("not implemented"))
     }
 
     Ok(())
