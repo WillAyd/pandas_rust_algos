@@ -4,7 +4,7 @@ mod types;
 
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
-    group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_mean,
+    group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_last, group_mean,
     group_median_float64, group_ohlc, group_prod, group_quantile, group_shift_indexer, group_skew,
     group_sum, group_var,
 };
@@ -760,15 +760,49 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyo3(name = "group_last")]
     fn group_last_py<'py>(
         out: NumericArray2,
-        counts: PyReadwriteArray1<i64>,
+        mut counts: PyReadwriteArray1<i64>,
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
-        mask: PyReadonlyArray2<u8>,
-        sort_indexer: PyReadonlyArray1<i64>,
-        qs: PyReadonlyArray1<f64>,
+        mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
+        min_count: isize,
+        is_datetimelike: bool,
     ) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("not implemented"))
+        match (out, values) {
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_last(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_last(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_last(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
+        }
+
+        Ok(())
     }
 
     #[pyfn(m)]
