@@ -1,5 +1,5 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
-use num::traits::{NumCast, One, Zero};
+use num::traits::{Bounded, NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
@@ -1827,6 +1827,260 @@ pub fn group_last<T>(
                             *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
                         } else {
                             *out.uget_mut((i, j)) = *resx.uget((i, j))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn group_nth<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    min_count: isize,
+    rank: i64,
+    is_datetimelike: bool,
+) where
+    T: Zero + Copy + Default + PandasNA,
+{
+    let ncounts = counts.len();
+
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let min_count = cmp::max(min_count, 1);
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+
+    // no support for object dtypes right now
+    let mut resx = Array2::<T>::default((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            if *nobs.uget((lab as usize, j)) == rank {
+                                *resx.uget_mut((lab as usize, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *result_mask.uget_mut((i, j)) = 1;
+                        } else {
+                            *out.uget_mut((i, j)) = *resx.uget((i, j))
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            if *nobs.uget((lab as usize, j)) == rank {
+                                *resx.uget_mut((lab as usize, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
+                        } else {
+                            *out.uget_mut((i, j)) = *resx.uget((i, j))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Compute minimum/maximum  of columns of `values`, in row groups `labels`.
+///
+/// Parameters
+/// ----------
+/// out : np.ndarray[numeric_t, ndim=2]
+///     Array to store result in.
+/// counts : np.ndarray[int64]
+///     Input as a zeroed array, populated by group sizes during algorithm
+/// values : array
+///     Values to find column-wise min/max of.
+/// labels : np.ndarray[np.intp]
+///     Labels to group by.
+/// min_count : Py_ssize_t, default -1
+///     The minimum number of non-NA group elements, NA result if threshold
+///     is not met
+/// is_datetimelike : bool
+///     True if `values` contains datetime-like entries.
+/// compute_max : bint, default True
+///     True to compute group-wise max, False to compute min
+/// mask : ndarray[bool, ndim=2], optional
+///     If not None, indices represent missing values,
+///     otherwise the mask will not be used
+/// result_mask : ndarray[bool, ndim=2], optional
+///     If not None, these specify locations in the output that are NA.
+///     Modified in-place.
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter, rather than returning an object.
+/// `counts` is modified to hold group sizes
+pub fn group_min_max<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    min_count: isize,
+    is_datetimelike: bool,
+    compute_max: bool,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+) where
+    T: Zero + Copy + PandasNA + Default + Bounded + PartialOrd,
+{
+    let ngroups = counts.len();
+
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let min_count = cmp::max(min_count, 1);
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut group_min_or_max = Array2::<T>::default((out_dim[0], out_dim[1]));
+
+    // TODO: pandas does something here to fill with NA sorting in mind
+    // not bothering with that for now
+    if compute_max {
+        group_min_or_max.fill(<T as Bounded>::min_value());
+    } else {
+        group_min_or_max.fill(<T as Bounded>::max_value());
+    }
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let val_cmp = val
+                                .partial_cmp(&*group_min_or_max.uget((lab as usize, j)))
+                                .expect("tried to compare nan");
+                            if compute_max && val_cmp == Ordering::Greater {
+                                *group_min_or_max.uget_mut((lab as usize, j)) = val;
+                            } else if !compute_max && val_cmp == Ordering::Less {
+                                *group_min_or_max.uget_mut((lab as usize, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+            for i in 0..ngroups {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *result_mask.uget_mut((i, j)) = 1;
+                        } else {
+                            *out.uget_mut((i, j)) = *group_min_or_max.uget((i, j))
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let val_cmp = val
+                                .partial_cmp(&*group_min_or_max.uget((lab as usize, j)))
+                                .expect("tried to compare nan");
+                            if compute_max && val_cmp == Ordering::Greater {
+                                *group_min_or_max.uget_mut((lab as usize, j)) = val;
+                            } else if !compute_max && val_cmp == Ordering::Less {
+                                *group_min_or_max.uget_mut((lab as usize, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+            for i in 0..ngroups {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i, j)) < min_count as i64 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
+                        } else {
+                            *out.uget_mut((i, j)) = *group_min_or_max.uget((i, j))
                         }
                     }
                 }
