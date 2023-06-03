@@ -5,7 +5,7 @@ mod types;
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
     group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64,
-    group_prod, group_shift_indexer, group_sum, group_var,
+    group_prod, group_shift_indexer, group_skew, group_sum, group_var,
 };
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
@@ -525,6 +525,28 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             ),
             _ => panic!("Unsupported argument types to group_var!"),
         }
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_skew")]
+    fn group_skew_py<'py>(
+        mut out: PyReadwriteArray2<f64>,
+        mut counts: PyReadwriteArray1<i64>,
+        values: PyReadonlyArray2<f64>,
+        labels: PyReadonlyArray1<i64>,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        skipna: bool,
+    ) {
+        group_skew(
+            out.as_array_mut(),
+            counts.as_array_mut(),
+            values.as_array(),
+            labels.as_array(),
+            py_mask,
+            py_result_mask,
+            skipna,
+        )
     }
 
     Ok(())

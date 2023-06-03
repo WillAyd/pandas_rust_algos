@@ -1177,3 +1177,144 @@ pub fn group_var<T>(
         }
     }
 }
+
+pub fn group_skew(
+    mut out: ArrayViewMut2<f64>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<f64>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    skipna: bool,
+) {
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+
+    // M1, M2 and M3 correspond to 1st, 2nd and third Moments
+    let mut m1 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
+    let mut m2 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
+    let mut m3 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    out.fill(0.);
+
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        let isna_entry = *mask.uget((i, j));
+                        if isna_entry == 0 {
+                            // Based on Runningsats::Push from
+                            // https://www.johndcook.com/blog/skewness_kurtosis/
+                            let n1 = *nobs.uget((lab as usize, j));
+                            let n_ = n1 + 1;
+
+                            *nobs.uget_mut((lab as usize, j)) = n_;
+                            let delta = val - *m1.uget((lab as usize, j));
+                            let delta_n = delta / n_ as f64;
+                            let term1 = delta * delta_n * n1 as f64;
+
+                            *m1.uget_mut((lab as usize, j)) += delta_n;
+                            *m3.uget_mut((lab as usize, j)) += term1 * delta_n * (n - 2) as f64
+                                - 3 as f64 * delta_n * *m2.uget((lab as usize, j));
+                            *m2.uget_mut((lab as usize, j)) += term1;
+                        } else if !skipna {
+                            *m1.uget_mut((lab as usize, j)) = f64::NAN;
+                            *m2.uget_mut((lab as usize, j)) = f64::NAN;
+                            *m3.uget_mut((lab as usize, j)) = f64::NAN;
+                        }
+                    }
+
+                    for i in 0..counts.len() {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < 3 {
+                                *result_mask.uget_mut((i, j)) = 1;
+                                *out.uget_mut((i, j)) = f64::NAN;
+                            } else if *m2.uget((i, j)) == 0. {
+                                *out.uget_mut((i, j)) = 0.;
+                            } else {
+                                *out.uget_mut((i, j)) = ((ct as f64) * ((ct - 1) as f64).powf(0.5)
+                                    / ((ct - 2) as f64))
+                                    * (*m3.uget((i, j)) / (*m2.uget((i, j)) as f64).powf(1.5));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+
+                        let isna_entry = val.isna(false);
+                        if !isna_entry {
+                            // Based on Runningsats::Push from
+                            // https://www.johndcook.com/blog/skewness_kurtosis/
+                            let n1 = *nobs.uget((lab as usize, j));
+                            let n_ = n1 + 1;
+
+                            *nobs.uget_mut((lab as usize, j)) = n_;
+                            let delta = val - *m1.uget((lab as usize, j));
+                            let delta_n = delta / n_ as f64;
+                            let term1 = delta * delta_n * n1 as f64;
+
+                            *m1.uget_mut((lab as usize, j)) += delta_n;
+                            *m3.uget_mut((lab as usize, j)) += term1 * delta_n * (n - 2) as f64
+                                - 3 as f64 * delta_n * *m2.uget((lab as usize, j));
+                            *m2.uget_mut((lab as usize, j)) += term1;
+                        } else if !skipna {
+                            *m1.uget_mut((lab as usize, j)) = f64::NAN;
+                            *m2.uget_mut((lab as usize, j)) = f64::NAN;
+                            *m3.uget_mut((lab as usize, j)) = f64::NAN;
+                        }
+                    }
+
+                    for i in 0..counts.len() {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < 3 {
+                                *out.uget_mut((i, j)) = f64::NAN;
+                            } else if *m2.uget((i, j)) == 0. {
+                                *out.uget_mut((i, j)) = 0.;
+                            } else {
+                                *out.uget_mut((i, j)) = ((ct as f64) * ((ct - 1) as f64).powf(0.5)
+                                    / ((ct - 2) as f64))
+                                    * (*m3.uget((i, j)) / (*m2.uget((i, j)) as f64).powf(1.5));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
