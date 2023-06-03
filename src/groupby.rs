@@ -683,3 +683,497 @@ pub fn group_fillna_indexer(
         }
     }
 }
+
+/// Aggregated boolean values to show truthfulness of group elements. If the
+/// input is a nullable type (result_mask is not None), the result will be computed
+/// using Kleene logic.
+/// Parameters
+/// ----------
+/// out : np.ndarray[np.int8]
+///     Values into which this method will write its results.
+/// labels : np.ndarray[np.intp]
+///     Array containing unique label for each group, with its
+///     ordering matching up to the corresponding record in `values`
+/// values : np.ndarray[np.int8]
+///     Containing the truth value of each element.
+/// mask : np.ndarray[np.uint8]
+///     Indicating whether a value is na or not.
+/// val_test : {'any', 'all'}
+///     String object dictating whether to use any or all truth testing
+/// skipna : bool
+///     Flag to ignore nan values during truth testing
+/// result_mask : ndarray[bool, ndim=2], optional
+///     If not None, these specify locations in the output that are NA.
+///     Modified in-place.
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter rather than returning an object.
+/// The returned values will either be 0, 1 (False or True, respectively), or
+/// -1 to signify a masked position in the case of a nullable input.
+pub fn group_any_all(
+    mut out: ArrayViewMut2<i8>,
+    values: ArrayView2<i8>,
+    labels: ArrayView1<i64>,
+    mask: ArrayView2<u8>,
+    val_test: String,
+    skipna: bool,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+) {
+    let n = labels.len();
+    let out_dim = out.shape();
+    let k = out_dim[1];
+
+    let flag_val: bool;
+    if val_test == "all" {
+        flag_val = false;
+        out.fill(1);
+    } else if val_test == "any" {
+        flag_val = true;
+        out.fill(0);
+    } else {
+        panic!("'val_test' must be either 'any' or 'all'!");
+    }
+
+    match py_result_mask {
+        Some(mut py_result_mask) => {
+            let mut result_mask = py_result_mask.as_array_mut();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if skipna & (*mask.uget((i, j)) == 1) {
+                            continue;
+                        }
+
+                        if *mask.uget((i, j)) == 1 {
+                            // Set the position as masked if `out[lab] != flag_val`, which
+                            // would indicate True/False has not yet been seen for any/all,
+                            // so by Kleene logic the result is currently unknown
+                            if *out.uget((lab as usize, j)) != flag_val as i8 {
+                                *result_mask.uget_mut((lab as usize, j)) = 1;
+                            }
+                            continue;
+                        }
+
+                        let val = *values.uget((i, j));
+
+                        // If True and 'any' or False and 'all', the result is
+                        // already determined
+                        if val == flag_val as i8 {
+                            *out.uget_mut((lab as usize, j)) = flag_val as i8;
+                            *result_mask.uget_mut((lab as usize, j)) = 0;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if skipna & (*mask.uget((i, j)) == 1) {
+                            continue;
+                        }
+
+                        let val = *values.uget((i, j));
+
+                        // If True and 'any' or False and 'all', the result is
+                        // already determined
+                        if val == flag_val as i8 {
+                            *out.uget_mut((lab as usize, j)) = flag_val as i8;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Check if the number of observations for a group is below min_count,
+/// and if so set the result for that group to the appropriate NA-like value.
+fn check_below_mincount<T>(
+    mut out: ArrayViewMut2<T>,
+    _uses_mask: bool,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ncounts: isize,
+    k: isize,
+    nobs: ArrayView2<i64>,
+    min_count: i64,
+    resx: ArrayView2<T>,
+) where
+    T: PandasNA + Zero + Copy,
+{
+    match py_result_mask {
+        Some(mut py_result_mask) => {
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i as usize, j as usize)) < min_count {
+                            //  if we are integer dtype, not is_datetimelike, and
+                            //  not uses_mask, then getting here implies that
+                            //  counts[i] < min_count, which means we will
+                            //  be cast to float64 and masked at the end
+                            //  of WrappedCythonOp._call_cython_op. So we can safely
+                            //  set a placeholder value in out[i, j].
+                            *result_mask.uget_mut((i as usize, j as usize)) = 1;
+                            // set out[i, j] to 0 to be deterministic, as
+                            // it was initialized with np.empty. Also ensures
+                            //  we can downcast out if appropriate.
+                            *out.uget_mut((i as usize, j as usize)) = <T as Zero>::zero();
+                        } else {
+                            *out.uget_mut((i as usize, j as usize)) =
+                                *resx.uget((i as usize, j as usize));
+                        }
+                    }
+                }
+            }
+        }
+        None => {
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        if *nobs.uget((i as usize, j as usize)) < min_count {
+                            // TODO: is_datetimelike never makes it here, but why not?
+                            *out.uget_mut((i as usize, j as usize)) = T::na_val(false);
+                        } else {
+                            *out.uget_mut((i as usize, j as usize)) =
+                                *resx.uget((i as usize, j as usize));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Only aggregates on axis=0 using Kahan summation
+pub fn group_sum<T>(
+    out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    min_count: isize,
+    is_datetimelike: bool,
+) where
+    T: PandasNA + Zero + One + Clone + Copy + std::ops::Sub<Output = T> + std::ops::Add<Output = T>,
+{
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    // the below is equivalent to `np.zeros_like(out)` but faster
+    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    // For now we haven't implemented the PyObject case - do we need to?
+
+    match py_mask {
+        Some(ref py_mask) => {
+            let mask = py_mask.as_array();
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        counts.len() as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        sumx.view(),
+    );
+}
+
+pub fn group_prod<T>(
+    out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    min_count: isize,
+) where
+    T: PandasNA + Zero + One + Clone + Copy + std::ops::MulAssign + std::ops::Add<Output = T>,
+{
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let out_dim = out.shape();
+    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut prodx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    match py_mask {
+        Some(ref py_mask) => {
+            let mask = py_mask.as_array();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            *prodx.uget_mut((lab as usize, j)) *= val;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        // No is_datetimelike in group_prod signature...
+                        if !val.isna(false) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            *prodx.uget_mut((lab as usize, j)) *= val;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        counts.len() as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        prodx.view(),
+    );
+}
+
+pub fn group_var<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    min_count: isize,
+    ddof: i64,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    is_datetimelike: bool,
+    name: String,
+) where
+    T: Zero
+        + Clone
+        + Copy
+        + std::ops::Sub<Output = T>
+        + std::ops::Div<Output = T>
+        + std::ops::Mul<Output = T>
+        + std::ops::AddAssign
+        + std::ops::DivAssign
+        + PandasNA
+        + From<i32> // see note for nobs type
+        + num::Float,
+{
+    if min_count != -1 {
+        panic!("'min_count' only used in sum and prod");
+    }
+
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let ncounts = counts.len();
+    let is_std = name == "std";
+    let is_sem = name == "sem";
+
+    let out_dim = out.shape();
+
+    // TODO: pandas has this as an i32, but the conversion from
+    // i32 to f64 is not lossless, so rust does not like it during division
+    let mut nobs = Array2::<i32>::zeros((out_dim[0], out_dim[1]));
+    let mut mean = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    out.fill(<T as Zero>::zero());
+
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let oldmean = *mean.uget((lab as usize, j));
+                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            *mean.uget_mut((lab as usize, j)) += temp;
+
+                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                        }
+                    }
+
+                    for i in 0..ncounts {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < ddof as i32 {
+                                *result_mask.uget_mut((i, j)) = 1;
+                            } else {
+                                if is_std {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                } else if is_sem {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
+                                            .sqrt();
+                                } else {
+                                    // just "var"
+                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        // TODO: Cython has the following note can't replicated here
+                        // With group_var, we cannot just use _treat_as_na bc
+                        // datetimelike dtypes get cast to float64 instead of
+                        // to int64.
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let oldmean = *mean.uget((lab as usize, j));
+                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            *mean.uget_mut((lab as usize, j)) += temp;
+
+                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                        }
+                    }
+
+                    for i in 0..ncounts {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < ddof as i32 {
+                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
+                            } else {
+                                if is_std {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                } else if is_sem {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
+                                            .sqrt();
+                                } else {
+                                    // just "var"
+                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

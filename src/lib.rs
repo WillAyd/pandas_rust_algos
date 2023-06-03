@@ -4,7 +4,8 @@ mod types;
 
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
-    group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64, group_shift_indexer,
+    group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64,
+    group_prod, group_shift_indexer, group_sum, group_var,
 };
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
@@ -379,6 +380,151 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             limit,
             dropna,
         );
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_any_all")]
+    fn group_any_all_py<'py>(
+        mut out: PyReadwriteArray2<i8>,
+        values: PyReadonlyArray2<i8>,
+        labels: PyReadonlyArray1<i64>,
+        mask: PyReadonlyArray2<u8>,
+        val_test: String,
+        skipna: bool,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+    ) {
+        group_any_all(
+            out.as_array_mut(),
+            values.as_array(),
+            labels.as_array(),
+            mask.as_array(),
+            val_test,
+            skipna,
+            py_result_mask,
+        );
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_sum")]
+    fn group_sum_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
+        min_count: isize,
+        is_datetimelike: bool,
+    ) {
+        match (out, values) {
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_sum(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_sum(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_sum(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+                is_datetimelike,
+            ),
+            _ => panic!("Unsupported argument types to group_sum!"),
+        }
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_prod")]
+    fn group_prod_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
+        min_count: isize,
+    ) {
+        match (out, values) {
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_prod(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_prod(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_prod(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask,
+                result_mask,
+                min_count,
+            ),
+            _ => panic!("Unsupported argument types to group_prod!"),
+        }
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_var")]
+    fn group_var_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        ddof: i64,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        is_datetimelike: bool,
+        name: String,
+    ) {
+        match (out, values) {
+            // TODO: we aren't using a platform int so rust doesn't like 32bit ->
+            // f32; change to c platform int and can likely get that specialization
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_var(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count,
+                ddof,
+                py_mask,
+                py_result_mask,
+                is_datetimelike,
+                name,
+            ),
+            _ => panic!("Unsupported argument types to group_var!"),
+        }
     }
 
     Ok(())
