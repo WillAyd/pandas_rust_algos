@@ -153,7 +153,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 out.readwrite().as_array_mut(),
                 0.0,
             ),
-            (_, _) => panic!("Types not supported"),
+            (_, _) => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
@@ -294,7 +294,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 mask,
                 result_mask,
             ),
-            _ => panic!("Unsupported argument types to cumprod!"),
+            _ => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
@@ -348,7 +348,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 mask,
                 result_mask,
             ),
-            _ => panic!("Unsupported argument types to cumsum!"),
+            _ => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
@@ -448,7 +448,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count,
                 is_datetimelike,
             ),
-            _ => panic!("Unsupported argument types to group_sum!"),
+            _ => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
@@ -491,7 +491,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 result_mask,
                 min_count,
             ),
-            _ => panic!("Unsupported argument types to group_prod!"),
+            _ => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
@@ -524,7 +524,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 is_datetimelike,
                 name,
             ),
-            _ => panic!("Unsupported argument types to group_var!"),
+            _ => Err(PyNotImplementedError::new_err("not implemented")),
         }
     }
 
