@@ -1,4 +1,10 @@
-If you would like to use this library run ``maturin develop --release`` from the project root and it will install the Python package into your environment
+These are implementations of the pandas algorithms. You can find a working copy of pandas that uses these here:
+
+https://github.com/WillAyd/pandas/tree/rust-algos
+
+As of now about half of the groupby algorithms are implemented. If you would like to contribute any more to learn rust please do so!
+
+You can also use this library directly. To do so run ``maturin develop --release`` from the project root and it will install the Python package into your environment
 
 ```python
 import numpy as np
