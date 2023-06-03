@@ -3,7 +3,7 @@ use num::traits::{NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
-use std::cmp;
+use std::cmp::Ordering;
 use std::mem::size_of;
 
 pub trait PandasNA {
@@ -1485,7 +1485,7 @@ pub fn group_ohlc<T>(
     py_mask: Option<PyReadonlyArray2<u8>>,
     mut py_result_mask: Option<PyReadwriteArray2<u8>>,
 ) where
-    T: PandasNA + Zero + Clone + Copy + Ord,
+    T: PandasNA + Zero + Clone + Copy + PartialOrd,
 {
     if min_count != -1 {
         panic!("'min_count' only used in sum and prod");
@@ -1542,10 +1542,19 @@ pub fn group_ohlc<T>(
                         *result_mask.uget_mut((lab as usize, 2)) = 0;
                         *result_mask.uget_mut((lab as usize, 3)) = 0;
                     } else {
-                        *out.uget_mut((lab as usize, 1)) =
-                            cmp::max(*out.uget((lab as usize, 1)), val);
-                        *out.uget_mut((lab as usize, 2)) =
-                            cmp::min(*out.uget((lab as usize, 2)), val);
+                        let result1 = (*out.uget_mut((lab as usize, 1)))
+                            .partial_cmp(&val)
+                            .expect("trying to compare NA");
+                        if result1 == Ordering::Less {
+                            *out.uget_mut((lab as usize, 1)) = val;
+                        }
+
+                        let result2 = (*out.uget((lab as usize, 1)))
+                            .partial_cmp(&val)
+                            .expect("tried to compare nan");
+                        if result2 == Ordering::Less {
+                            *out.uget_mut((lab as usize, 2)) = val;
+                        }
                         *out.uget_mut((lab as usize, 3)) = val;
                     }
                 }
@@ -1573,10 +1582,19 @@ pub fn group_ohlc<T>(
                         *out.uget_mut((lab as usize, 3)) = val;
                         *first_element_set.uget_mut(lab as usize) = 1;
                     } else {
-                        *out.uget_mut((lab as usize, 1)) =
-                            cmp::max(*out.uget((lab as usize, 1)), val);
-                        *out.uget_mut((lab as usize, 2)) =
-                            cmp::min(*out.uget((lab as usize, 2)), val);
+                        let result1 = (*out.uget_mut((lab as usize, 1)))
+                            .partial_cmp(&val)
+                            .expect("trying to compare NA");
+                        if result1 == Ordering::Less {
+                            *out.uget_mut((lab as usize, 1)) = val;
+                        }
+
+                        let result2 = (*out.uget((lab as usize, 1)))
+                            .partial_cmp(&val)
+                            .expect("tried to compare nan");
+                        if result2 == Ordering::Less {
+                            *out.uget_mut((lab as usize, 2)) = val;
+                        }
                         *out.uget_mut((lab as usize, 3)) = val;
                     }
                 }

@@ -5,7 +5,8 @@ mod types;
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
     group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_mean,
-    group_median_float64, group_prod, group_shift_indexer, group_skew, group_sum, group_var,
+    group_median_float64, group_ohlc, group_prod, group_shift_indexer, group_skew, group_sum,
+    group_var,
 };
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
@@ -652,7 +653,38 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("not implemented"))
+        match (out, values) {
+            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_ohlc(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_ohlc(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count,
+                mask,
+                result_mask,
+            ),
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_ohlc(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count,
+                mask,
+                result_mask,
+            ),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
+        }
+
+        Ok(())
     }
 
     #[pyfn(m)]
