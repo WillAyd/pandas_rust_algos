@@ -5,7 +5,7 @@ mod types;
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
     group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_median_float64,
-    group_prod, group_shift_indexer, group_sum,
+    group_prod, group_shift_indexer, group_sum, group_var,
 };
 use crate::types::NumericArray2;
 use ndarray::parallel::prelude::*;
@@ -491,6 +491,39 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count,
             ),
             _ => panic!("Unsupported argument types to group_prod!"),
+        }
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "group_var")]
+    fn group_var_py<'py>(
+        out: NumericArray2,
+        mut counts: PyReadwriteArray1<i64>,
+        values: NumericArray2,
+        labels: PyReadonlyArray1<i64>,
+        min_count: isize,
+        ddof: i64,
+        py_mask: Option<PyReadonlyArray2<u8>>,
+        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        is_datetimelike: bool,
+        name: String,
+    ) {
+        match (out, values) {
+            // TODO: we aren't using a platform int so rust doesn't like 32bit ->
+            // f32; change to c platform int and can likely get that specialization
+            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_var(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count,
+                ddof,
+                py_mask,
+                py_result_mask,
+                is_datetimelike,
+                name,
+            ),
+            _ => panic!("Unsupported argument types to group_var!"),
         }
     }
 

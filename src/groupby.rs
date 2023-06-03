@@ -966,7 +966,6 @@ pub fn group_prod<T>(
 
     let out_dim = out.shape();
     let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
-    // the below is equivalent to `np.zeros_like(out)` but faster
     let mut prodx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
 
     let values_shape = values.shape();
@@ -1027,4 +1026,154 @@ pub fn group_prod<T>(
         min_count.try_into().unwrap(),
         prodx.view(),
     );
+}
+
+pub fn group_var<T>(
+    mut out: ArrayViewMut2<T>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<T>,
+    labels: ArrayView1<i64>,
+    min_count: isize,
+    ddof: i64,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    is_datetimelike: bool,
+    name: String,
+) where
+    T: Zero
+        + Clone
+        + Copy
+        + std::ops::Sub<Output = T>
+        + std::ops::Div<Output = T>
+        + std::ops::Mul<Output = T>
+        + std::ops::AddAssign
+        + std::ops::DivAssign
+        + PandasNA
+        + From<i32> // see note for nobs type
+        + num::Float,
+{
+    if min_count != -1 {
+        panic!("'min_count' only used in sum and prod");
+    }
+
+    if values.len() != labels.len() {
+        panic!("len(index) != len(labels)");
+    }
+
+    let ncounts = counts.len();
+    let is_std = name == "std";
+    let is_sem = name == "sem";
+
+    let out_dim = out.shape();
+
+    // TODO: pandas has this as an i32, but the conversion from
+    // i32 to f64 is not lossless, so rust does not like it during division
+    let mut nobs = Array2::<i32>::zeros((out_dim[0], out_dim[1]));
+    let mut mean = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+
+    let values_shape = values.shape();
+    let n = values_shape[0];
+    let k = values_shape[1];
+
+    out.fill(<T as Zero>::zero());
+
+    match (py_mask, py_result_mask) {
+        (Some(py_mask), Some(mut py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        if *mask.uget((i, j)) == 0 {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let oldmean = *mean.uget((lab as usize, j));
+                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            *mean.uget_mut((lab as usize, j)) += temp;
+
+                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                        }
+                    }
+
+                    for i in 0..ncounts {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < ddof as i32 {
+                                *result_mask.uget_mut((i, j)) = 1;
+                            } else {
+                                if is_std {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                } else if is_sem {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
+                                            .sqrt();
+                                } else {
+                                    // just "var"
+                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
+
+                    for j in 0..k {
+                        let val = *values.uget((i, j));
+                        // TODO: Cython has the following note can't replicated here
+                        // With group_var, we cannot just use _treat_as_na bc
+                        // datetimelike dtypes get cast to float64 instead of
+                        // to int64.
+                        if !val.isna(is_datetimelike) {
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let oldmean = *mean.uget((lab as usize, j));
+                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            *mean.uget_mut((lab as usize, j)) += temp;
+
+                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                        }
+                    }
+
+                    for i in 0..ncounts {
+                        for j in 0..k {
+                            let ct = *nobs.uget((i, j));
+                            if ct < ddof as i32 {
+                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
+                            } else {
+                                if is_std {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                } else if is_sem {
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
+                                            .sqrt();
+                                } else {
+                                    // just "var"
+                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
