@@ -52,7 +52,11 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "take_1d")]
-    fn take_1d_py<'py>(values: TakeType<'py>, indexer: PyReadonlyArray1<i64>, out: TakeType<'py>) {
+    fn take_1d_py<'py>(
+        values: TakeType<'py>,
+        indexer: PyReadonlyArray1<i64>,
+        out: TakeType<'py>,
+    ) -> PyResult<()> {
         match (values, out) {
             (TakeType::U8(values), TakeType::U8(out)) => take_1d(
                 values.readonly().as_array(),
@@ -153,8 +157,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 out.readwrite().as_array_mut(),
                 0.0,
             ),
-            (_, _) => Err(PyNotImplementedError::new_err("not implemented")),
+            (_, _) => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -258,7 +264,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         skipna: bool,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-    ) {
+    ) -> PyResult<()> {
         match (out, values) {
             // TODO: pretty hard to dispatch here; PyO3 does not allow for a generic type
             // match arms must all have the same resulting expression types, and a
@@ -294,8 +300,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 mask,
                 result_mask,
             ),
-            _ => Err(PyNotImplementedError::new_err("not implemented")),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -312,7 +320,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         skipna: bool,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-    ) {
+    ) -> PyResult<()> {
         match (out, values) {
             // TODO: pretty hard to dispatch here; PyO3 does not allow for a generic type
             // match arms must all have the same resulting expression types, and a
@@ -348,8 +356,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 mask,
                 result_mask,
             ),
-            _ => Err(PyNotImplementedError::new_err("not implemented")),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -359,8 +369,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         periods: i64,
-    ) {
+    ) -> PyResult<()> {
         group_shift_indexer(out.as_array_mut(), labels.as_array(), ngroups, periods);
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -372,7 +384,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: PyReadonlyArray1<u8>,
         limit: i64,
         dropna: bool,
-    ) {
+    ) -> PyResult<()> {
         group_fillna_indexer(
             out.as_array_mut(),
             labels.as_array(),
@@ -381,6 +393,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             limit,
             dropna,
         );
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -393,7 +407,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         val_test: String,
         skipna: bool,
         py_result_mask: Option<PyReadwriteArray2<u8>>,
-    ) {
+    ) -> PyResult<()> {
         group_any_all(
             out.as_array_mut(),
             values.as_array(),
@@ -403,6 +417,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             skipna,
             py_result_mask,
         );
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -416,7 +432,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         result_mask: Option<PyReadwriteArray2<u8>>,
         min_count: isize,
         is_datetimelike: bool,
-    ) {
+    ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_sum(
                 out.readwrite().as_array_mut(),
@@ -448,8 +464,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count,
                 is_datetimelike,
             ),
-            _ => Err(PyNotImplementedError::new_err("not implemented")),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -462,7 +480,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
         min_count: isize,
-    ) {
+    ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_prod(
                 out.readwrite().as_array_mut(),
@@ -491,8 +509,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 result_mask,
                 min_count,
             ),
-            _ => Err(PyNotImplementedError::new_err("not implemented")),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -508,7 +528,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         result_mask: Option<PyReadwriteArray2<u8>>,
         is_datetimelike: bool,
         name: String,
-    ) {
+    ) -> PyResult<()> {
         match (out, values) {
             // TODO: we aren't using a platform int so rust doesn't like 32bit ->
             // f32; change to c platform int and can likely get that specialization
@@ -524,8 +544,10 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 is_datetimelike,
                 name,
             ),
-            _ => Err(PyNotImplementedError::new_err("not implemented")),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -538,7 +560,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
         skipna: bool,
-    ) {
+    ) -> PyResult<()> {
         group_skew(
             out.as_array_mut(),
             counts.as_array_mut(),
@@ -547,7 +569,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             mask,
             result_mask,
             skipna,
-        )
+        );
+
+        Ok(())
     }
 
     #[pyfn(m)]
