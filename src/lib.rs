@@ -504,8 +504,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         ddof: i64,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         is_datetimelike: bool,
         name: String,
     ) {
@@ -519,8 +519,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 min_count,
                 ddof,
-                py_mask,
-                py_result_mask,
+                mask,
+                result_mask,
                 is_datetimelike,
                 name,
             ),
@@ -535,8 +535,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: PyReadonlyArray2<f64>,
         labels: PyReadonlyArray1<i64>,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         skipna: bool,
     ) {
         group_skew(
@@ -544,8 +544,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             counts.as_array_mut(),
             values.as_array(),
             labels.as_array(),
-            py_mask,
-            py_result_mask,
+            mask,
+            result_mask,
             skipna,
         )
     }
@@ -559,8 +559,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -573,8 +573,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -589,7 +589,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         sort_indexer: PyReadonlyArray1<i64>,
         qs: PyReadonlyArray1<f64>,
         interpolation: String,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -602,7 +602,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         mask: PyReadonlyArray2<u8>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         min_count: isize,
         is_datetimelike: bool,
     ) -> PyResult<()> {
@@ -617,7 +617,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         mask: PyReadonlyArray2<u8>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         min_count: isize,
         is_datetimelike: bool,
     ) -> PyResult<()> {
@@ -650,8 +650,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -665,8 +665,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -679,8 +679,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         skipna: bool,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
@@ -694,8 +694,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
-        py_mask: Option<PyReadonlyArray2<u8>>,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
         skipna: bool,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
