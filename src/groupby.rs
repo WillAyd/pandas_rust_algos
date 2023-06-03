@@ -1,9 +1,10 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use num::traits::{NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
-use numpy::{PyReadonlyArray2, PyReadwriteArray2};
+use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::mem::size_of;
 
 pub trait PandasNA {
@@ -1600,5 +1601,135 @@ pub fn group_ohlc<T>(
                 }
             }
         }
+    }
+}
+
+pub fn group_quantile<T>(
+    mut out: ArrayViewMut2<f64>,
+    values: ArrayView1<T>,
+    labels: ArrayView1<i64>,
+    mut mask: ArrayViewMut1<u8>,
+    sort_indexer: ArrayView1<i64>,
+    qs: ArrayView1<f64>,
+    interpolation: String,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+) where
+    T: Zero + Copy + NumCast + std::ops::Sub<Output = T>,
+{
+    let n = labels.len();
+    if values.shape()[0] != n {
+        panic!("shape mismatch");
+    }
+
+    for q in qs.into_iter() {
+        let val = *q;
+        if (val < 0.) | (val > 1.) {
+            panic!("Each 'q' must be between 0 and 1. Got '{}' instead", val);
+        }
+    }
+
+    let inter_methods = HashMap::from([
+        ("linear", 0),
+        ("lower", 1),
+        ("higher", 2),
+        ("nearest", 3),
+        ("midpoint", 4),
+    ]);
+    let interp = inter_methods
+        .get(&interpolation as &str)
+        .expect("could not find interpolation method");
+
+    let mut grp_start = 0;
+    let mut grp_sz;
+    let nqs = qs.len();
+    let ngroups = out.len();
+    let mut counts = Array1::<i64>::zeros(ngroups);
+    let mut non_na_counts = Array1::<i64>::zeros(ngroups);
+
+    // First figure out the size of every group
+    for i in 0..n {
+        unsafe {
+            let lab = *labels.uget(i);
+            if lab == -1 {
+                // NA group label
+                continue;
+            }
+
+            *counts.uget_mut(lab as usize) += 1;
+            if *mask.uget_mut(i) == 0 {
+                *non_na_counts.uget_mut(lab as usize) += 1;
+            }
+        }
+    }
+
+    for i in 0..ngroups {
+        unsafe {
+            // Figure out how many group elements there are
+            grp_sz = *counts.uget(i);
+            let non_na_sz = *non_na_counts.uget(i);
+
+            if non_na_sz == 0 {
+                for k in 0..nqs {
+                    match py_result_mask.as_mut() {
+                        Some(py_result_mask) => {
+                            let mut result_mask = py_result_mask.as_array_mut();
+                            *result_mask.uget_mut((i, k)) = 1;
+                        }
+                        _ => {
+                            *out.uget_mut((i, k)) = f64::NAN;
+                        }
+                    }
+                }
+            } else {
+                for k in 0..nqs {
+                    let q_val = *qs.uget(k);
+
+                    // Calculate where to retrieve the desired value
+                    // Casting to int will intentionally truncate result
+                    let idx = grp_start + (q_val * (non_na_sz - 1) as f64) as i64;
+
+                    let val = *values.uget(*sort_indexer.uget(idx as usize) as usize);
+                    // If requested quantile falls evenly on a particular index
+                    // then write that index's value out. Otherwise interpolate
+                    let q_idx = q_val * (non_na_sz - 1) as f64;
+                    let frac = q_idx % 1.;
+
+                    // TODO: we should create an enum to manage this instead
+                    // of using integral codes
+                    if (frac == 0.) || (*interp == 1) {
+                        // LOWER
+                        *out.uget_mut((i, k)) = NumCast::from(val).unwrap();
+                    } else {
+                        let next_val =
+                            *values.uget(*sort_indexer.uget((idx + 1) as usize) as usize);
+                        if *interp == 0 {
+                            // LINEAR
+                            // Rust does not implicitly allow i64 -> f64 conversions
+                            // so need extra hackery
+                            let f_next_val: f64 = NumCast::from(next_val).unwrap();
+                            let f_val: f64 = NumCast::from(val).unwrap();
+                            let result = f_val + (f_next_val - f_val) * frac;
+                            *out.uget_mut((i, k)) = NumCast::from(result).unwrap();
+                        } else if *interp == 2 {
+                            // HIGHER
+                            *out.uget_mut((i, k)) = NumCast::from(next_val).unwrap();
+                        } else if *interp == 4 {
+                            // MIDPOINT
+                            let f_sum: f64 = NumCast::from(val + next_val).unwrap();
+                            *out.uget_mut((i, k)) = NumCast::from(f_sum / 2.).unwrap();
+                        } else if *interp == 3 {
+                            // NEAREST
+                            if (frac > 0.5) || (frac == 0.5 && q_val > 0.5) {
+                                *out.uget_mut((i, k)) = NumCast::from(next_val).unwrap();
+                            } else {
+                                *out.uget_mut((i, k)) = NumCast::from(val).unwrap();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        grp_start += grp_sz;
     }
 }

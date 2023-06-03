@@ -5,10 +5,10 @@ mod types;
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
     group_any_all, group_cumprod, group_cumsum, group_fillna_indexer, group_mean,
-    group_median_float64, group_ohlc, group_prod, group_shift_indexer, group_skew, group_sum,
-    group_var,
+    group_median_float64, group_ohlc, group_prod, group_quantile, group_shift_indexer, group_skew,
+    group_sum, group_var,
 };
-use crate::types::NumericArray2;
+use crate::types::{NumericArray1, NumericArray2};
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
@@ -687,19 +687,73 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         Ok(())
     }
 
+    /// Calculate the quantile per group.
+    ///
+    /// Parameters
+    /// ----------
+    /// out : np.ndarray[np.float64, ndim=2]
+    ///     Array of aggregated values that will be written to.
+    /// values : np.ndarray
+    ///     Array containing the values to apply the function against.
+    /// labels : ndarray[np.intp]
+    ///     Array containing the unique group labels.
+    /// sort_indexer : ndarray[np.intp]
+    ///     Indices describing sort order by values and labels.
+    /// qs : ndarray[float64_t]
+    ///     The quantile values to search for.
+    /// interpolation : {'linear', 'lower', 'highest', 'nearest', 'midpoint'}
+    ///
+    /// Notes
+    /// -----
+    /// Rather than explicitly returning a value, this function modifies the
+    /// provided `out` parameter.
     #[pyfn(m)]
     #[pyo3(name = "group_quantile")]
     fn group_quantile_py<'py>(
-        out: PyReadwriteArray2<f64>,
-        values: NumericArray2,
+        mut out: PyReadwriteArray2<f64>,
+        values: NumericArray1,
         labels: PyReadonlyArray1<i64>,
-        mask: PyReadonlyArray1<u8>,
+        mut mask: PyReadwriteArray1<u8>,
         sort_indexer: PyReadonlyArray1<i64>,
         qs: PyReadonlyArray1<f64>,
         interpolation: String,
         result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
-        Err(PyNotImplementedError::new_err("not implemented"))
+        match values {
+            NumericArray1::I64(values) => group_quantile(
+                out.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask.as_array_mut(),
+                sort_indexer.as_array(),
+                qs.as_array(),
+                interpolation,
+                result_mask,
+            ),
+            NumericArray1::F32(values) => group_quantile(
+                out.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask.as_array_mut(),
+                sort_indexer.as_array(),
+                qs.as_array(),
+                interpolation,
+                result_mask,
+            ),
+            NumericArray1::F64(values) => group_quantile(
+                out.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                mask.as_array_mut(),
+                sort_indexer.as_array(),
+                qs.as_array(),
+                interpolation,
+                result_mask,
+            ),
+            _ => return Err(PyNotImplementedError::new_err("not implemented")),
+        }
+
+        Ok(())
     }
 
     #[pyfn(m)]
@@ -710,9 +764,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         mask: PyReadonlyArray2<u8>,
+        sort_indexer: PyReadonlyArray1<i64>,
+        qs: PyReadonlyArray1<f64>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        min_count: isize,
-        is_datetimelike: bool,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
