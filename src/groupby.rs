@@ -2088,3 +2088,143 @@ pub fn group_min_max<T>(
         }
     }
 }
+
+/// Cumulative minimum/maximum of columns of `values`, in row groups `labels`.
+///
+/// Parameters
+/// ----------
+/// out : np.ndarray[numeric_t, ndim=2]
+///     Array to store cummin/max in.
+/// values : np.ndarray[numeric_t, ndim=2]
+///     Values to take cummin/max of.
+/// mask : np.ndarray[bool] or None
+///     If not None, indices represent missing values,
+///     otherwise the mask will not be used
+/// result_mask : ndarray[bool, ndim=2], optional
+///     If not None, these specify locations in the output that are NA.
+///     Modified in-place.
+/// labels : np.ndarray[np.intp]
+///     Labels to group by.
+/// ngroups : int
+///     Number of groups, larger than all entries of `labels`.
+/// is_datetimelike : bool
+///     True if `values` contains datetime-like entries.
+/// skipna : bool
+///     If True, ignore nans in `values`.
+/// compute_max : bool
+///     True if cumulative maximum should be computed, False
+///     if cumulative minimum should be computed
+///
+/// Notes
+/// -----
+/// This method modifies the `out` parameter, rather than returning an object.
+pub fn group_cummin_max<T>(
+    mut out: ArrayViewMut2<T>,
+    values: ArrayView2<T>,
+    py_mask: Option<PyReadonlyArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    labels: ArrayView1<i64>,
+    ngroups: i64,
+    is_datetimelike: bool,
+    skipna: bool,
+    compute_max: bool,
+) where
+    T: Zero + One + Copy + PandasNA + Bounded + PartialOrd,
+{
+    let values_dim = values.shape();
+    let mut accum = Array2::<T>::ones((ngroups as usize, values_dim[1]));
+    // TODO: pandas does something here to fill with NA sorting in mind
+    // not bothering with that for now
+    if compute_max {
+        accum.fill(<T as Bounded>::min_value());
+    } else {
+        accum.fill(<T as Bounded>::max_value());
+    }
+
+    // pandas tries to avoid this for non-nullable types, but why?
+    // only function I see that does that
+    let mut seen_na = Array2::<u8>::zeros((ngroups as usize, values_dim[1]));
+    let n = values_dim[0];
+    let k = values_dim[1];
+
+    match (&py_mask, py_result_mask.as_mut()) {
+        (Some(py_mask), Some(py_result_mask)) => {
+            let mask = py_mask.as_array();
+            let mut result_mask = py_result_mask.as_array_mut();
+
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if !skipna && *seen_na.uget((lab as usize, j)) == 1 {
+                            *result_mask.uget_mut((i, j)) = 1;
+                            // Set to 0 ensures that we are deterministic and can
+                            // downcast if appropriate
+                            *out.uget_mut((i, j)) = <T as Zero>::zero();
+                        } else {
+                            let val = *values.uget((i, j));
+
+                            let isna_entry = *mask.uget((i, j));
+                            if isna_entry == 0 {
+                                let mut mval = *accum.uget((lab as usize, j));
+                                let val_cmp = val.partial_cmp(&mval).expect("tried to compare nan");
+                                if compute_max && val_cmp == Ordering::Greater {
+                                    *accum.uget_mut((lab as usize, j)) = val;
+                                    mval = val;
+                                } else if !compute_max && val_cmp == Ordering::Less {
+                                    *accum.uget_mut((lab as usize, j)) = val;
+                                    mval = val;
+                                }
+
+                                *out.uget_mut((i, j)) = mval;
+                            } else {
+                                *seen_na.uget_mut((lab as usize, j)) = 1;
+                                *out.uget_mut((i, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            for i in 0..n {
+                unsafe {
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    for j in 0..k {
+                        if !skipna && *seen_na.uget((lab as usize, j)) == 1 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
+                        } else {
+                            let val = *values.uget((i, j));
+
+                            let isna_entry = val.isna(is_datetimelike);
+                            if !isna_entry {
+                                let mut mval = *accum.uget((lab as usize, j));
+                                let val_cmp = val.partial_cmp(&mval).expect("tried to compare nan");
+                                if compute_max && val_cmp == Ordering::Greater {
+                                    *accum.uget_mut((lab as usize, j)) = val;
+                                    mval = val;
+                                } else if !compute_max && val_cmp == Ordering::Less {
+                                    *accum.uget_mut((lab as usize, j)) = val;
+                                    mval = val;
+                                }
+
+                                *out.uget_mut((i, j)) = mval;
+                            } else {
+                                *seen_na.uget_mut((lab as usize, j)) = 1;
+                                *out.uget_mut((i, j)) = val;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
