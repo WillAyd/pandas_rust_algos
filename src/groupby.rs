@@ -648,7 +648,7 @@ pub fn group_fillna_indexer(
     let n = out.shape()[0];
 
     // make sure all arrays are the same size
-    if !((n == labels.shape()[0]) & (n == mask.shape()[0])) {
+    if !((n == labels.shape()[0]) && (n == mask.shape()[0])) {
         panic!("Not all arrays are the same size!");
     }
 
@@ -658,12 +658,12 @@ pub fn group_fillna_indexer(
     for i in 0..n {
         unsafe {
             let idx = *sorted_labels.uget(1);
-            if dropna & (*labels.uget(idx as usize) == -1) {
+            if dropna && (*labels.uget(idx as usize) == -1) {
                 curr_fill_idx = -1;
             } else if *mask.uget(idx as usize) {
                 // is missing
                 // Stop filling once we've hit the limit
-                if (filled_vals >= limit) & (limit != -1) {
+                if (filled_vals >= limit) && (limit != -1) {
                     curr_fill_idx = -1;
                 }
                 filled_vals += 1;
@@ -677,8 +677,8 @@ pub fn group_fillna_indexer(
 
             // If we move to the next group, reset
             // the fill_idx and counter
-            if (i == n)
-                | (*labels.uget(idx as usize) != *labels.uget(*sorted_labels.uget(i + 1) as usize))
+            if (i == n - 1)
+                || (*labels.uget(idx as usize) != *labels.uget(*sorted_labels.uget(i + 1) as usize))
             {
                 curr_fill_idx = -1;
                 filled_vals = 0;
@@ -749,7 +749,7 @@ pub fn group_any_all(
                     }
 
                     for j in 0..k {
-                        if skipna & *mask.uget((i, j)) {
+                        if skipna && *mask.uget((i, j)) {
                             continue;
                         }
 
@@ -784,7 +784,7 @@ pub fn group_any_all(
                     }
 
                     for j in 0..k {
-                        if skipna & *mask.uget((i, j)) {
+                        if skipna && *mask.uget((i, j)) {
                             continue;
                         }
 
@@ -1620,7 +1620,7 @@ pub fn group_quantile<T>(
 
     for q in qs.into_iter() {
         let val = *q;
-        if (val < 0.) | (val > 1.) {
+        if (val < 0.) || (val > 1.) {
             panic!("Each 'q' must be between 0 and 1. Got '{}' instead", val);
         }
     }
