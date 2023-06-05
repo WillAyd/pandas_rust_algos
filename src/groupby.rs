@@ -1119,11 +1119,10 @@ pub fn group_var<T>(
                         if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
-                            let temp = (val - oldmean)
+                            *mean.uget_mut((lab as usize, j)) += (val - oldmean)
                                 / NumCast::from(*nobs.uget((lab as usize, j))).unwrap();
-                            *mean.uget_mut((lab as usize, j)) += temp;
-
-                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                            *out.uget_mut((lab as usize, j)) +=
+                                (val - *mean.uget((lab as usize, j))) * (val - oldmean);
                         }
                     }
                 }
@@ -1169,11 +1168,10 @@ pub fn group_var<T>(
                         if !val.isna(is_datetimelike) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
-                            let temp = (val - oldmean)
+                            *mean.uget_mut((lab as usize, j)) += (val - oldmean)
                                 / NumCast::from(*nobs.uget((lab as usize, j))).unwrap();
-                            *mean.uget_mut((lab as usize, j)) += temp;
-
-                            *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
+                            *out.uget_mut((lab as usize, j)) +=
+                                (val - *mean.uget((lab as usize, j))) * (val - oldmean);
                         }
                     }
                 }
