@@ -879,11 +879,10 @@ pub fn group_sum<T>(
     }
 
     let ncounts = counts.len();
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     // the below is equivalent to `np.zeros_like(out)` but faster
-    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
-    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut sumx = Array2::<T>::zeros(out.raw_dim());
+    let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -993,9 +992,8 @@ pub fn group_prod<T>(
         panic!("len(index) != len(labels)");
     }
 
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
-    let mut prodx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
+    let mut prodx = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1093,12 +1091,10 @@ pub fn group_var<T>(
     let is_std = name == "std";
     let is_sem = name == "sem";
 
-    let out_dim = out.shape();
-
     // TODO: pandas has this as an i32, but the conversion from
     // i32 to f64 is not lossless, so rust does not like it during division
-    let mut nobs = Array2::<i32>::zeros((out_dim[0], out_dim[1]));
-    let mut mean = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i32>::zeros(out.raw_dim());
+    let mut mean = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1220,13 +1216,12 @@ pub fn group_skew(
         panic!("len(index) != len(labels)");
     }
 
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // M1, M2 and M3 correspond to 1st, 2nd and third Moments
-    let mut m1 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
-    let mut m2 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
-    let mut m3 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
+    let mut m1 = Array2::<f64>::zeros(out.raw_dim());
+    let mut m2 = Array2::<f64>::zeros(out.raw_dim());
+    let mut m3 = Array2::<f64>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1374,11 +1369,10 @@ pub fn group_mean<T>(
     }
 
     let ncounts = counts.len();
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     // the below is equivalent to `np.zeros_like(out)` but faster
-    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
-    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut sumx = Array2::<T>::zeros(out.raw_dim());
+    let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1754,11 +1748,10 @@ pub fn group_last<T>(
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // no support for object dtypes right now
-    let mut resx = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut resx = Array2::<T>::default(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1855,11 +1848,10 @@ pub fn group_nth<T>(
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // no support for object dtypes right now
-    let mut resx = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut resx = Array2::<T>::default(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1990,9 +1982,8 @@ pub fn group_min_max<T>(
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
-    let mut group_min_or_max = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
+    let mut group_min_or_max = Array2::<T>::default(out.raw_dim());
 
     // TODO: pandas does something here to fill with NA sorting in mind
     // not bothering with that for now
