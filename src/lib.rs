@@ -404,7 +404,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut out: PyReadwriteArray2<i8>,
         values: PyReadonlyArray2<i8>,
         labels: PyReadonlyArray1<i64>,
-        mask: PyReadonlyArray2<u8>,
+        mask: PyReadonlyArray2<bool>,
         val_test: String,
         skipna: bool,
         result_mask: Option<PyReadwriteArray2<u8>>,

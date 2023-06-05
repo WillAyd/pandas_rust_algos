@@ -718,7 +718,7 @@ pub fn group_any_all(
     mut out: ArrayViewMut2<i8>,
     values: ArrayView2<i8>,
     labels: ArrayView1<i64>,
-    mask: ArrayView2<u8>,
+    mask: ArrayView2<bool>,
     val_test: String,
     skipna: bool,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
@@ -749,11 +749,11 @@ pub fn group_any_all(
                     }
 
                     for j in 0..k {
-                        if skipna & (*mask.uget((i, j)) == 1) {
+                        if skipna & *mask.uget((i, j)) {
                             continue;
                         }
 
-                        if *mask.uget((i, j)) == 1 {
+                        if *mask.uget((i, j)) {
                             // Set the position as masked if `out[lab] != flag_val`, which
                             // would indicate True/False has not yet been seen for any/all,
                             // so by Kleene logic the result is currently unknown
@@ -784,7 +784,7 @@ pub fn group_any_all(
                     }
 
                     for j in 0..k {
-                        if skipna & (*mask.uget((i, j)) == 1) {
+                        if skipna & *mask.uget((i, j)) {
                             continue;
                         }
 
