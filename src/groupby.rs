@@ -657,7 +657,7 @@ pub fn group_fillna_indexer(
 
     for i in 0..n {
         unsafe {
-            let idx = *sorted_labels.uget(1);
+            let idx = *sorted_labels.uget(i);
             if dropna && (*labels.uget(idx as usize) == -1) {
                 curr_fill_idx = -1;
             } else if *mask.uget(idx as usize) {
