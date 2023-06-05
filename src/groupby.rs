@@ -1078,6 +1078,7 @@ pub fn group_var<T>(
         + PandasNA
         + num::Float,
 {
+    let ddof_t: T = NumCast::from(ddof).unwrap();
     if min_count != -1 {
         panic!("'min_count' only used in sum and prod");
     }
@@ -1129,22 +1130,19 @@ pub fn group_var<T>(
                 for i in 0..ncounts {
                     for j in 0..k {
                         unsafe {
-                            let ct = *nobs.uget((i, j));
-                            if ct < ddof {
+                            let ct: T = NumCast::from(*nobs.uget((i, j))).unwrap();
+                            if ct < NumCast::from(ddof).unwrap() {
                                 *result_mask.uget_mut((i, j)) = true;
                             } else {
                                 if is_std {
-                                    *out.uget_mut((i, j)) = (*out.uget((i, j))
-                                        / NumCast::from(ct - ddof).unwrap())
-                                    .sqrt();
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / ct - ddof_t).sqrt();
                                 } else if is_sem {
-                                    *out.uget_mut((i, j)) = (*out.uget((i, j))
-                                        / NumCast::from(ct - ddof).unwrap()
-                                        / NumCast::from(ct).unwrap())
-                                    .sqrt();
+                                    *out.uget_mut((i, j)) =
+                                        (*out.uget((i, j)) / (ct - ddof_t) / ct).sqrt();
                                 } else {
                                     // just "var"
-                                    *out.uget_mut((i, j)) /= NumCast::from(ct - ddof).unwrap();
+                                    *out.uget_mut((i, j)) /= ct - ddof_t;
                                 }
                             }
                         }
@@ -1183,21 +1181,18 @@ pub fn group_var<T>(
             for i in 0..ncounts {
                 for j in 0..k {
                     unsafe {
-                        let ct = *nobs.uget((i, j));
-                        if ct < ddof {
+                        let ct: T = NumCast::from(*nobs.uget((i, j))).unwrap();
+                        if ct < ddof_t {
                             *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
                         } else {
                             if is_std {
-                                *out.uget_mut((i, j)) =
-                                    (*out.uget((i, j)) / NumCast::from(ct - ddof).unwrap()).sqrt();
+                                *out.uget_mut((i, j)) = (*out.uget((i, j)) / (ct - ddof_t)).sqrt();
                             } else if is_sem {
-                                *out.uget_mut((i, j)) = (*out.uget((i, j))
-                                    / NumCast::from(ct - ddof).unwrap()
-                                    / NumCast::from(ct).unwrap())
-                                .sqrt();
+                                *out.uget_mut((i, j)) =
+                                    (*out.uget((i, j)) / (ct - ddof_t) / ct).sqrt();
                             } else {
                                 // just "var"
-                                *out.uget_mut((i, j)) /= NumCast::from(ct - ddof).unwrap();
+                                *out.uget_mut((i, j)) /= ct - ddof_t;
                             }
                         }
                     }
