@@ -65,7 +65,7 @@ unsafe fn calc_median_linear(a: *const f64, n: i64) -> f64 {
     result
 }
 
-unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const u8) -> f64 {
+unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const bool) -> f64 {
     let mut na_count = 0;
 
     if n == 0 {
@@ -73,7 +73,7 @@ unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const u8) -> f64 
     }
 
     for i in 0..n {
-        if *mask.add(i as usize) == 1 {
+        if *mask.add(i as usize) {
             na_count += 1;
         }
     }
@@ -91,7 +91,7 @@ unsafe fn median_linear_mask(a: *const f64, mut n: i64, mask: *const u8) -> f64 
 
         let mut j = 0;
         for i in 0..n {
-            if *mask.add(i as usize) == 0 {
+            if !*mask.add(i as usize) {
                 *(ptr as *mut f64).add(j) = *a.add(i as usize);
                 j += 1;
             }
@@ -155,7 +155,7 @@ pub fn group_median_float64(
     values: ArrayView2<f64>,
     labels: ArrayView1<i64>,
     min_count: isize,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) {
     if min_count != -1 {
@@ -179,7 +179,7 @@ pub fn group_median_float64(
         (Some(py_mask), Some(mut py_result_mask)) => {
             let mask = py_mask.as_array();
             let mut result_mask = py_result_mask.as_array_mut();
-            let mut data_mask = Array2::<u8>::default((k, n));
+            let mut data_mask = Array2::<bool>::default((k, n));
             let mut ptr_mask = data_mask.as_ptr();
 
             take_2d_axis1(mask.t(), indexer.view(), data_mask.view_mut());
@@ -253,7 +253,7 @@ pub fn group_cumprod<T>(
     ngroups: i64,
     is_datetimelike: bool,
     skipna: bool,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + One + Clone + Copy + PandasNA + std::ops::MulAssign,
@@ -278,7 +278,7 @@ pub fn group_cumprod<T>(
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        let isna_entry = *mask.uget((i, j)) == 0;
+                        let isna_entry = *mask.uget((i, j));
                         if !isna_entry {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
@@ -447,7 +447,7 @@ pub fn group_cumsum<T>(
     ngroups: i64,
     is_datetimelike: bool,
     skipna: bool,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + One + Clone + Copy + PandasNA + std::ops::Sub<Output = T> + CumSumAccumulator,
@@ -474,7 +474,7 @@ pub fn group_cumsum<T>(
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        let isna_entry = *mask.uget((i, j)) == 0;
+                        let isna_entry = *mask.uget((i, j));
 
                         if !skipna {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
@@ -641,7 +641,7 @@ pub fn group_fillna_indexer(
     mut out: ArrayViewMut1<i64>,
     labels: ArrayView1<i64>,
     sorted_labels: ArrayView1<i64>,
-    mask: ArrayView1<u8>,
+    mask: ArrayView1<bool>,
     limit: i64,
     dropna: bool,
 ) {
@@ -660,7 +660,7 @@ pub fn group_fillna_indexer(
             let idx = *sorted_labels.uget(1);
             if dropna & (*labels.uget(idx as usize) == -1) {
                 curr_fill_idx = -1;
-            } else if *mask.uget(idx as usize) == 1 {
+            } else if *mask.uget(idx as usize) {
                 // is missing
                 // Stop filling once we've hit the limit
                 if (filled_vals >= limit) & (limit != -1) {
@@ -867,7 +867,7 @@ pub fn group_sum<T>(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     is_datetimelike: bool,
@@ -904,7 +904,7 @@ pub fn group_sum<T>(
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let y = val - *compensation.uget((lab as usize, j));
                             let t = *sumx.uget((lab as usize, j)) + y;
@@ -982,7 +982,7 @@ pub fn group_prod<T>(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
 ) where
@@ -1013,7 +1013,7 @@ pub fn group_prod<T>(
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             *prodx.uget_mut((lab as usize, j)) *= val;
                         }
@@ -1062,7 +1062,7 @@ pub fn group_var<T>(
     labels: ArrayView1<i64>,
     min_count: isize,
     ddof: i64,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
     is_datetimelike: bool,
     name: String,
@@ -1118,7 +1118,7 @@ pub fn group_var<T>(
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
                             let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
@@ -1210,7 +1210,7 @@ pub fn group_skew(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<f64>,
     labels: ArrayView1<i64>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     py_result_mask: Option<PyReadwriteArray2<bool>>,
     skipna: bool,
 ) {
@@ -1249,7 +1249,7 @@ pub fn group_skew(
                         let val = *values.uget((i, j));
 
                         let isna_entry = *mask.uget((i, j));
-                        if isna_entry == 0 {
+                        if !isna_entry {
                             // Based on Runningsats::Push from
                             // https://www.johndcook.com/blog/skewness_kurtosis/
                             let n1 = *nobs.uget((lab as usize, j));
@@ -1353,7 +1353,7 @@ pub fn group_mean<T>(
     labels: ArrayView1<i64>,
     min_count: isize,
     is_datetimelike: bool,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: PandasNA
@@ -1397,7 +1397,7 @@ pub fn group_mean<T>(
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let y = val - *compensation.uget((lab as usize, j));
                             let t = *sumx.uget((lab as usize, j)) + y;
@@ -1480,7 +1480,7 @@ pub fn group_ohlc<T>(
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     min_count: isize,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: PandasNA + Zero + Clone + Copy + PartialOrd,
@@ -1523,7 +1523,7 @@ pub fn group_ohlc<T>(
                     *counts.uget_mut(lab as usize) += 1;
                     let val = *values.uget((i, 0));
                     let isna_entry = *mask.uget((i, 0));
-                    if isna_entry == 1 {
+                    if isna_entry {
                         continue;
                     }
 
@@ -1605,7 +1605,7 @@ pub fn group_quantile<T>(
     mut out: ArrayViewMut2<f64>,
     values: ArrayView1<T>,
     labels: ArrayView1<i64>,
-    mut mask: ArrayViewMut1<u8>,
+    mut mask: ArrayViewMut1<bool>,
     sort_indexer: ArrayView1<i64>,
     qs: ArrayView1<f64>,
     interpolation: String,
@@ -1653,7 +1653,7 @@ pub fn group_quantile<T>(
             }
 
             *counts.uget_mut(lab as usize) += 1;
-            if *mask.uget_mut(i) == 0 {
+            if !*mask.uget_mut(i) {
                 *non_na_counts.uget_mut(lab as usize) += 1;
             }
         }
@@ -1736,7 +1736,7 @@ pub fn group_last<T>(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     is_datetimelike: bool,
@@ -1775,7 +1775,7 @@ pub fn group_last<T>(
                     for j in 0..k {
                         let val = *values.uget((i, j));
 
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             *resx.uget_mut((lab as usize, j)) = val;
                         }
@@ -1835,7 +1835,7 @@ pub fn group_nth<T>(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     rank: i64,
@@ -1875,7 +1875,7 @@ pub fn group_nth<T>(
                     for j in 0..k {
                         let val = *values.uget((i, j));
 
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             if *nobs.uget((lab as usize, j)) == rank {
                                 *resx.uget_mut((lab as usize, j)) = val;
@@ -1972,7 +1972,7 @@ pub fn group_min_max<T>(
     min_count: isize,
     is_datetimelike: bool,
     compute_max: bool,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + Copy + PandasNA + Default + Bounded + PartialOrd,
@@ -2015,7 +2015,7 @@ pub fn group_min_max<T>(
                     for j in 0..k {
                         let val = *values.uget((i, j));
 
-                        if *mask.uget((i, j)) == 0 {
+                        if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let val_cmp = val
                                 .partial_cmp(&*group_min_or_max.uget((lab as usize, j)))
@@ -2114,7 +2114,7 @@ pub fn group_min_max<T>(
 pub fn group_cummin_max<T>(
     mut out: ArrayViewMut2<T>,
     values: ArrayView2<T>,
-    py_mask: Option<PyReadonlyArray2<u8>>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     labels: ArrayView1<i64>,
     ngroups: i64,
@@ -2162,7 +2162,7 @@ pub fn group_cummin_max<T>(
                             let val = *values.uget((i, j));
 
                             let isna_entry = *mask.uget((i, j));
-                            if isna_entry == 0 {
+                            if !isna_entry {
                                 let mut mval = *accum.uget((lab as usize, j));
                                 let val_cmp = val.partial_cmp(&mval).expect("tried to compare nan");
                                 if compute_max && val_cmp == Ordering::Greater {

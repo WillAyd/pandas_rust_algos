@@ -237,7 +237,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: PyReadonlyArray2<f64>,
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) {
         group_median_float64(
@@ -263,7 +263,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         ngroups: i64,
         is_datetimelike: bool,
         skipna: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -319,7 +319,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         ngroups: i64,
         is_datetimelike: bool,
         skipna: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -382,7 +382,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut out: PyReadwriteArray1<i64>,
         labels: PyReadonlyArray1<i64>,
         sorted_labels: PyReadonlyArray1<i64>,
-        mask: PyReadonlyArray1<u8>,
+        mask: PyReadonlyArray1<bool>,
         limit: i64,
         dropna: bool,
     ) -> PyResult<()> {
@@ -429,7 +429,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         min_count: Option<isize>,
         is_datetimelike: Option<bool>,
@@ -478,7 +478,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         min_count: Option<isize>,
     ) -> PyResult<()> {
@@ -525,7 +525,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         ddof: i64,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         is_datetimelike: Option<bool>,
         name: Option<String>,
@@ -558,7 +558,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: PyReadonlyArray2<f64>,
         labels: PyReadonlyArray1<i64>,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         skipna: Option<bool>,
     ) -> PyResult<()> {
@@ -612,7 +612,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -650,7 +650,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -713,7 +713,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut out: PyReadwriteArray2<f64>,
         values: NumericArray1,
         labels: PyReadonlyArray1<i64>,
-        mut mask: PyReadwriteArray1<u8>,
+        mut mask: PyReadwriteArray1<bool>,
         sort_indexer: PyReadonlyArray1<i64>,
         qs: PyReadonlyArray1<f64>,
         interpolation: String,
@@ -763,7 +763,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         min_count: Option<isize>,
         is_datetimelike: Option<bool>,
@@ -812,7 +812,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut counts: PyReadwriteArray1<i64>,
         values: NumericArray2,
         labels: PyReadonlyArray1<i64>,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         min_count: Option<isize>,
         rank: Option<i64>,
@@ -870,7 +870,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         _ascending: bool,
         _pct: bool,
         _na_option: String,
-        _mask: PyReadonlyArray2<u8>,
+        _mask: PyReadonlyArray2<bool>,
     ) -> PyResult<()> {
         Err(PyNotImplementedError::new_err("not implemented"))
     }
@@ -884,7 +884,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -936,7 +936,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         min_count: isize,
         is_datetimelike: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
     ) -> PyResult<()> {
         match (out, values) {
@@ -987,7 +987,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         skipna: Option<bool>,
     ) -> PyResult<()> {
@@ -1039,7 +1039,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
-        mask: Option<PyReadonlyArray2<u8>>,
+        mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
         skipna: Option<bool>,
     ) -> PyResult<()> {
