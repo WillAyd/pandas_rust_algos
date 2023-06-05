@@ -1127,9 +1127,10 @@ pub fn group_var<T>(
                             *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
                         }
                     }
-
-                    for i in 0..ncounts {
-                        for j in 0..k {
+                }
+                for i in 0..ncounts {
+                    for j in 0..k {
+                        unsafe {
                             let ct = *nobs.uget((i, j));
                             if ct < ddof as i32 {
                                 *result_mask.uget_mut((i, j)) = 1;
@@ -1176,24 +1177,25 @@ pub fn group_var<T>(
                             *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
                         }
                     }
-
-                    for i in 0..ncounts {
-                        for j in 0..k {
-                            let ct = *nobs.uget((i, j));
-                            if ct < ddof as i32 {
-                                *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
+                }
+            }
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        let ct = *nobs.uget((i, j));
+                        if ct < ddof as i32 {
+                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
+                        } else {
+                            if is_std {
+                                *out.uget_mut((i, j)) =
+                                    (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                            } else if is_sem {
+                                *out.uget_mut((i, j)) =
+                                    (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
+                                        .sqrt();
                             } else {
-                                if is_std {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
-                                } else if is_sem {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
-                                            .sqrt();
-                                } else {
-                                    // just "var"
-                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
-                                }
+                                // just "var"
+                                *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
                             }
                         }
                     }
