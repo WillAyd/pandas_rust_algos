@@ -531,8 +531,18 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         name: Option<String>,
     ) -> PyResult<()> {
         match (out, values) {
-            // TODO: we aren't using a platform int so rust doesn't like 32bit ->
-            // f32; change to c platform int and can likely get that specialization
+            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_var(
+                out.readwrite().as_array_mut(),
+                counts.as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                min_count.unwrap_or(-1),
+                ddof.unwrap_or(1),
+                mask,
+                result_mask,
+                is_datetimelike.unwrap_or(false),
+                name.unwrap_or(String::from("var")),
+            ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_var(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),

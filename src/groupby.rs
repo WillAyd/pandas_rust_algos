@@ -1076,7 +1076,6 @@ pub fn group_var<T>(
         + std::ops::AddAssign
         + std::ops::DivAssign
         + PandasNA
-        + From<i32> // see note for nobs type
         + num::Float,
 {
     if min_count != -1 {
@@ -1091,9 +1090,7 @@ pub fn group_var<T>(
     let is_std = name == "std";
     let is_sem = name == "sem";
 
-    // TODO: pandas has this as an i32, but the conversion from
-    // i32 to f64 is not lossless, so rust does not like it during division
-    let mut nobs = Array2::<i32>::zeros(out.raw_dim());
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     let mut mean = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
@@ -1121,7 +1118,8 @@ pub fn group_var<T>(
                         if !*mask.uget((i, j)) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
-                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            let temp = (val - oldmean)
+                                / NumCast::from(*nobs.uget((lab as usize, j))).unwrap();
                             *mean.uget_mut((lab as usize, j)) += temp;
 
                             *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
@@ -1132,19 +1130,21 @@ pub fn group_var<T>(
                     for j in 0..k {
                         unsafe {
                             let ct = *nobs.uget((i, j));
-                            if ct < ddof as i32 {
+                            if ct < ddof {
                                 *result_mask.uget_mut((i, j)) = true;
                             } else {
                                 if is_std {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                    *out.uget_mut((i, j)) = (*out.uget((i, j))
+                                        / NumCast::from(ct - ddof).unwrap())
+                                    .sqrt();
                                 } else if is_sem {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
-                                            .sqrt();
+                                    *out.uget_mut((i, j)) = (*out.uget((i, j))
+                                        / NumCast::from(ct - ddof).unwrap()
+                                        / NumCast::from(ct).unwrap())
+                                    .sqrt();
                                 } else {
                                     // just "var"
-                                    *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                    *out.uget_mut((i, j)) /= NumCast::from(ct - ddof).unwrap();
                                 }
                             }
                         }
@@ -1171,7 +1171,8 @@ pub fn group_var<T>(
                         if !val.isna(is_datetimelike) {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
-                            let temp = (val - oldmean) / (*nobs.uget((lab as usize, j))).into();
+                            let temp = (val - oldmean)
+                                / NumCast::from(*nobs.uget((lab as usize, j))).unwrap();
                             *mean.uget_mut((lab as usize, j)) += temp;
 
                             *out.uget_mut((lab as usize, j)) += (val - temp) * (val - oldmean);
@@ -1183,19 +1184,20 @@ pub fn group_var<T>(
                 for j in 0..k {
                     unsafe {
                         let ct = *nobs.uget((i, j));
-                        if ct < ddof as i32 {
+                        if ct < ddof {
                             *out.uget_mut((i, j)) = <T as PandasNA>::na_val(false);
                         } else {
                             if is_std {
                                 *out.uget_mut((i, j)) =
-                                    (*out.uget((i, j)) / (ct - ddof as i32).into()).sqrt();
+                                    (*out.uget((i, j)) / NumCast::from(ct - ddof).unwrap()).sqrt();
                             } else if is_sem {
-                                *out.uget_mut((i, j)) =
-                                    (*out.uget((i, j)) / (ct - ddof as i32).into() / ct.into())
-                                        .sqrt();
+                                *out.uget_mut((i, j)) = (*out.uget((i, j))
+                                    / NumCast::from(ct - ddof).unwrap()
+                                    / NumCast::from(ct).unwrap())
+                                .sqrt();
                             } else {
                                 // just "var"
-                                *out.uget_mut((i, j)) /= (ct - ddof as i32).into();
+                                *out.uget_mut((i, j)) /= NumCast::from(ct - ddof).unwrap();
                             }
                         }
                     }
