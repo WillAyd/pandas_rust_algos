@@ -407,7 +407,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mask: PyReadonlyArray2<u8>,
         val_test: String,
         skipna: bool,
-        py_result_mask: Option<PyReadwriteArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
     ) -> PyResult<()> {
         group_any_all(
             out.as_array_mut(),
@@ -416,7 +416,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             mask.as_array(),
             val_test,
             skipna,
-            py_result_mask,
+            result_mask,
         );
 
         Ok(())
@@ -431,8 +431,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        min_count: isize,
-        is_datetimelike: bool,
+        min_count: Option<isize>,
+        is_datetimelike: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_sum(
@@ -442,8 +442,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(0),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_sum(
                 out.readwrite().as_array_mut(),
@@ -452,8 +452,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(0),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_sum(
                 out.readwrite().as_array_mut(),
@@ -462,8 +462,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(0),
+                is_datetimelike.unwrap_or(false),
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -480,7 +480,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        min_count: isize,
+        min_count: Option<isize>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_prod(
@@ -490,7 +490,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
+                min_count.unwrap_or(0),
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_prod(
                 out.readwrite().as_array_mut(),
@@ -499,7 +499,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
+                min_count.unwrap_or(0),
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_prod(
                 out.readwrite().as_array_mut(),
@@ -508,7 +508,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
+                min_count.unwrap_or(0),
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -527,8 +527,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         ddof: i64,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        is_datetimelike: bool,
-        name: String,
+        is_datetimelike: Option<bool>,
+        name: Option<String>,
     ) -> PyResult<()> {
         match (out, values) {
             // TODO: we aren't using a platform int so rust doesn't like 32bit ->
@@ -542,8 +542,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 ddof,
                 mask,
                 result_mask,
-                is_datetimelike,
-                name,
+                is_datetimelike.unwrap_or(false),
+                name.unwrap_or(String::from("var")),
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -560,7 +560,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        skipna: bool,
+        skipna: Option<bool>,
     ) -> PyResult<()> {
         group_skew(
             out.as_array_mut(),
@@ -569,7 +569,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
             labels.as_array(),
             mask,
             result_mask,
-            skipna,
+            skipna.unwrap_or(true),
         );
 
         Ok(())
@@ -765,8 +765,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        min_count: isize,
-        is_datetimelike: bool,
+        min_count: Option<isize>,
+        is_datetimelike: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_last(
@@ -776,8 +776,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_last(
                 out.readwrite().as_array_mut(),
@@ -786,8 +786,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_last(
                 out.readwrite().as_array_mut(),
@@ -796,8 +796,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                is_datetimelike.unwrap_or(false),
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -814,9 +814,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        min_count: isize,
-        rank: i64,
-        is_datetimelike: bool,
+        min_count: Option<isize>,
+        rank: Option<i64>,
+        is_datetimelike: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_nth(
@@ -826,9 +826,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                rank,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                rank.unwrap_or(1),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_nth(
                 out.readwrite().as_array_mut(),
@@ -837,9 +837,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                rank,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                rank.unwrap_or(1),
+                is_datetimelike.unwrap_or(false),
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_nth(
                 out.readwrite().as_array_mut(),
@@ -848,9 +848,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 mask,
                 result_mask,
-                min_count,
-                rank,
-                is_datetimelike,
+                min_count.unwrap_or(-1),
+                rank.unwrap_or(1),
+                is_datetimelike.unwrap_or(false),
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -984,13 +984,12 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     fn group_cummin_py<'py>(
         out: NumericArray2,
         values: NumericArray2,
-        mask: Option<PyReadonlyArray2<u8>>,
-        result_mask: Option<PyReadwriteArray2<u8>>,
         labels: PyReadonlyArray1<i64>,
         ngroups: i64,
         is_datetimelike: bool,
-        skipna: bool,
-        compute_max: bool,
+        mask: Option<PyReadonlyArray2<u8>>,
+        result_mask: Option<PyReadwriteArray2<u8>>,
+        skipna: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_cummin_max(
@@ -1001,8 +1000,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
-                true,
+                skipna.unwrap_or(true),
+                false,
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_cummin_max(
                 out.readwrite().as_array_mut(),
@@ -1012,8 +1011,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
-                true,
+                skipna.unwrap_or(true),
+                false,
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_cummin_max(
                 out.readwrite().as_array_mut(),
@@ -1023,8 +1022,8 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
-                true,
+                skipna.unwrap_or(true),
+                false,
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
@@ -1042,7 +1041,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         is_datetimelike: bool,
         mask: Option<PyReadonlyArray2<u8>>,
         result_mask: Option<PyReadwriteArray2<u8>>,
-        skipna: bool,
+        skipna: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
             (NumericArray2::I64(out), NumericArray2::I64(values)) => group_cummin_max(
@@ -1053,7 +1052,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
+                skipna.unwrap_or(true),
                 false,
             ),
             (NumericArray2::F32(out), NumericArray2::F32(values)) => group_cummin_max(
@@ -1064,7 +1063,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
+                skipna.unwrap_or(true),
                 false,
             ),
             (NumericArray2::F64(out), NumericArray2::F64(values)) => group_cummin_max(
@@ -1075,7 +1074,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 labels.as_array(),
                 ngroups,
                 is_datetimelike,
-                skipna,
+                skipna.unwrap_or(true),
                 false,
             ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
