@@ -1,7 +1,7 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use num::traits::{Bounded, NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
-use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2};
+use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp;
 use std::cmp::Ordering;
@@ -156,7 +156,7 @@ pub fn group_median_float64(
     labels: ArrayView1<i64>,
     min_count: isize,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) {
     if min_count != -1 {
         panic!("'min_count' only used in sum and prod");
@@ -196,7 +196,7 @@ pub fn group_median_float64(
                         *out.uget_mut((j, i)) = result;
 
                         if result.is_nan() {
-                            *result_mask.uget_mut((j, i)) = 1
+                            *result_mask.uget_mut((j, i)) = true
                         }
                         ptr = ptr.add(size as usize);
                         ptr_mask = ptr_mask.add(size as usize);
@@ -254,7 +254,7 @@ pub fn group_cumprod<T>(
     is_datetimelike: bool,
     skipna: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + One + Clone + Copy + PandasNA + std::ops::MulAssign,
 {
@@ -283,13 +283,13 @@ pub fn group_cumprod<T>(
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
                                 *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
-                                *result_mask.uget_mut((i, j)) = 1;
+                                *result_mask.uget_mut((i, j)) = true;
                             } else {
                                 *accum.uget_mut((lab as usize, j)) *= val;
                                 *out.uget_mut((i, j)) = *accum.uget((lab as usize, j));
                             }
                         } else {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                             *out.uget_mut((i, j)) = <T as Zero>::zero();
 
                             if !skipna {
@@ -448,7 +448,7 @@ pub fn group_cumsum<T>(
     is_datetimelike: bool,
     skipna: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + One + Clone + Copy + PandasNA + std::ops::Sub<Output = T> + CumSumAccumulator,
 {
@@ -479,7 +479,7 @@ pub fn group_cumsum<T>(
                         if !skipna {
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
-                                *result_mask.uget_mut((i, j)) = 1;
+                                *result_mask.uget_mut((i, j)) = true;
                                 // Be determinisitc, out was initialized as empty
                                 *out.uget_mut((i, j)) = <T as Zero>::zero();
                                 continue;
@@ -487,7 +487,7 @@ pub fn group_cumsum<T>(
                         }
 
                         if isna_entry {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                             // Be determinisitc, out was initialized as empty
                             *out.uget_mut((i, j)) = <T as Zero>::zero();
 
@@ -721,7 +721,7 @@ pub fn group_any_all(
     mask: ArrayView2<bool>,
     val_test: String,
     skipna: bool,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) {
     let n = labels.shape()[0];
     let out_dim = out.shape();
@@ -758,7 +758,7 @@ pub fn group_any_all(
                             // would indicate True/False has not yet been seen for any/all,
                             // so by Kleene logic the result is currently unknown
                             if *out.uget((lab as usize, j)) != flag_val as i8 {
-                                *result_mask.uget_mut((lab as usize, j)) = 1;
+                                *result_mask.uget_mut((lab as usize, j)) = true;
                             }
                             continue;
                         }
@@ -769,7 +769,7 @@ pub fn group_any_all(
                         // already determined
                         if val == flag_val as i8 {
                             *out.uget_mut((lab as usize, j)) = flag_val as i8;
-                            *result_mask.uget_mut((lab as usize, j)) = 0;
+                            *result_mask.uget_mut((lab as usize, j)) = false;
                         }
                     }
                 }
@@ -807,7 +807,7 @@ pub fn group_any_all(
 fn check_below_mincount<T>(
     mut out: ArrayViewMut2<T>,
     _uses_mask: bool,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     ncounts: isize,
     k: isize,
     nobs: ArrayView2<i64>,
@@ -830,7 +830,7 @@ fn check_below_mincount<T>(
                             //  be cast to float64 and masked at the end
                             //  of WrappedCythonOp._call_cython_op. So we can safely
                             //  set a placeholder value in out[i, j].
-                            *result_mask.uget_mut((i as usize, j as usize)) = 1;
+                            *result_mask.uget_mut((i as usize, j as usize)) = true;
                             // set out[i, j] to 0 to be deterministic, as
                             // it was initialized with np.empty. Also ensures
                             //  we can downcast out if appropriate.
@@ -868,7 +868,7 @@ pub fn group_sum<T>(
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     is_datetimelike: bool,
 ) where
@@ -920,7 +920,7 @@ pub fn group_sum<T>(
                 for j in 0..k {
                     unsafe {
                         if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) = *sumx.uget((i, j));
                         }
@@ -983,7 +983,7 @@ pub fn group_prod<T>(
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
 ) where
     T: PandasNA + Zero + One + Clone + Copy + std::ops::MulAssign + std::ops::Add<Output = T>,
@@ -1063,7 +1063,7 @@ pub fn group_var<T>(
     min_count: isize,
     ddof: i64,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     is_datetimelike: bool,
     name: String,
 ) where
@@ -1133,7 +1133,7 @@ pub fn group_var<T>(
                         unsafe {
                             let ct = *nobs.uget((i, j));
                             if ct < ddof as i32 {
-                                *result_mask.uget_mut((i, j)) = 1;
+                                *result_mask.uget_mut((i, j)) = true;
                             } else {
                                 if is_std {
                                     *out.uget_mut((i, j)) =
@@ -1211,7 +1211,7 @@ pub fn group_skew(
     values: ArrayView2<f64>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    py_result_mask: Option<PyReadwriteArray2<u8>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     skipna: bool,
 ) {
     if values.shape()[0] != labels.shape()[0] {
@@ -1275,7 +1275,7 @@ pub fn group_skew(
                         for j in 0..k {
                             let ct = *nobs.uget((i, j));
                             if ct < 3 {
-                                *result_mask.uget_mut((i, j)) = 1;
+                                *result_mask.uget_mut((i, j)) = true;
                                 *out.uget_mut((i, j)) = f64::NAN;
                             } else if *m2.uget((i, j)) == 0. {
                                 *out.uget_mut((i, j)) = 0.;
@@ -1354,7 +1354,7 @@ pub fn group_mean<T>(
     min_count: isize,
     is_datetimelike: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: PandasNA
         + Zero
@@ -1414,7 +1414,7 @@ pub fn group_mean<T>(
                     unsafe {
                         let count = *nobs.uget((i, j));
                         if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) =
                                 *sumx.uget((i, j)) / NumCast::from(count).unwrap();
@@ -1481,7 +1481,7 @@ pub fn group_ohlc<T>(
     labels: ArrayView1<i64>,
     min_count: isize,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: PandasNA + Zero + Clone + Copy + PartialOrd,
 {
@@ -1511,7 +1511,7 @@ pub fn group_ohlc<T>(
         (Some(py_mask), Some(py_result_mask)) => {
             let mask = py_mask.as_array();
             let mut result_mask = py_result_mask.as_array_mut();
-            result_mask.fill(1);
+            result_mask.fill(true);
 
             for i in 0..n {
                 unsafe {
@@ -1535,10 +1535,10 @@ pub fn group_ohlc<T>(
                         *first_element_set.uget_mut(lab as usize) = 1;
 
                         // TODO: can we replace this with a slice?
-                        *result_mask.uget_mut((lab as usize, 0)) = 0;
-                        *result_mask.uget_mut((lab as usize, 1)) = 0;
-                        *result_mask.uget_mut((lab as usize, 2)) = 0;
-                        *result_mask.uget_mut((lab as usize, 3)) = 0;
+                        *result_mask.uget_mut((lab as usize, 0)) = false;
+                        *result_mask.uget_mut((lab as usize, 1)) = false;
+                        *result_mask.uget_mut((lab as usize, 2)) = false;
+                        *result_mask.uget_mut((lab as usize, 3)) = false;
                     } else {
                         let result1 = (*out.uget_mut((lab as usize, 1)))
                             .partial_cmp(&val)
@@ -1609,7 +1609,7 @@ pub fn group_quantile<T>(
     sort_indexer: ArrayView1<i64>,
     qs: ArrayView1<f64>,
     interpolation: String,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + Copy + NumCast + std::ops::Sub<Output = T>,
 {
@@ -1670,7 +1670,7 @@ pub fn group_quantile<T>(
                     match py_result_mask.as_mut() {
                         Some(py_result_mask) => {
                             let mut result_mask = py_result_mask.as_array_mut();
-                            *result_mask.uget_mut((i, k)) = 1;
+                            *result_mask.uget_mut((i, k)) = true;
                         }
                         _ => {
                             *out.uget_mut((i, k)) = f64::NAN;
@@ -1737,7 +1737,7 @@ pub fn group_last<T>(
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     is_datetimelike: bool,
 ) where
@@ -1787,7 +1787,7 @@ pub fn group_last<T>(
                 for j in 0..k {
                     unsafe {
                         if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) = *resx.uget((i, j))
                         }
@@ -1836,7 +1836,7 @@ pub fn group_nth<T>(
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     rank: i64,
     is_datetimelike: bool,
@@ -1889,7 +1889,7 @@ pub fn group_nth<T>(
                 for j in 0..k {
                     unsafe {
                         if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) = *resx.uget((i, j))
                         }
@@ -1973,7 +1973,7 @@ pub fn group_min_max<T>(
     is_datetimelike: bool,
     compute_max: bool,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
 ) where
     T: Zero + Copy + PandasNA + Default + Bounded + PartialOrd,
 {
@@ -2033,7 +2033,7 @@ pub fn group_min_max<T>(
                 for j in 0..k {
                     unsafe {
                         if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) = *group_min_or_max.uget((i, j))
                         }
@@ -2115,7 +2115,7 @@ pub fn group_cummin_max<T>(
     mut out: ArrayViewMut2<T>,
     values: ArrayView2<T>,
     py_mask: Option<PyReadonlyArray2<u8>>,
-    mut py_result_mask: Option<PyReadwriteArray2<u8>>,
+    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
     labels: ArrayView1<i64>,
     ngroups: i64,
     is_datetimelike: bool,
@@ -2154,7 +2154,7 @@ pub fn group_cummin_max<T>(
 
                     for j in 0..k {
                         if !skipna && *seen_na.uget((lab as usize, j)) == 1 {
-                            *result_mask.uget_mut((i, j)) = 1;
+                            *result_mask.uget_mut((i, j)) = true;
                             // Set to 0 ensures that we are deterministic and can
                             // downcast if appropriate
                             *out.uget_mut((i, j)) = <T as Zero>::zero();
