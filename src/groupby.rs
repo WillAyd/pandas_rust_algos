@@ -162,8 +162,8 @@ pub fn group_median_float64(
         panic!("'min_count' only used in sum and prod");
     }
 
-    let ngroups = counts.len();
-    let dim = values.raw_dim();
+    let ngroups = counts.shape()[0];
+    let dim = values.shape();
     let n = dim[0];
     let k = dim[1];
 
@@ -645,10 +645,10 @@ pub fn group_fillna_indexer(
     limit: i64,
     dropna: bool,
 ) {
-    let n = out.len();
+    let n = out.shape()[0];
 
     // make sure all arrays are the same size
-    if !((n == labels.len()) & (n == mask.len())) {
+    if !((n == labels.shape()[0]) & (n == mask.shape()[0])) {
         panic!("Not all arrays are the same size!");
     }
 
@@ -723,7 +723,7 @@ pub fn group_any_all(
     skipna: bool,
     py_result_mask: Option<PyReadwriteArray2<u8>>,
 ) {
-    let n = labels.len();
+    let n = labels.shape()[0];
     let out_dim = out.shape();
     let k = out_dim[1];
 
@@ -874,16 +874,15 @@ pub fn group_sum<T>(
 ) where
     T: PandasNA + Zero + One + Clone + Copy + std::ops::Sub<Output = T> + std::ops::Add<Output = T>,
 {
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
-    let ncounts = counts.len();
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let ncounts = counts.shape()[0];
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     // the below is equivalent to `np.zeros_like(out)` but faster
-    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
-    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut sumx = Array2::<T>::zeros(out.raw_dim());
+    let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -970,7 +969,7 @@ pub fn group_sum<T>(
         out,
         !py_mask.is_none(),
         py_result_mask,
-        counts.len() as isize,
+        counts.shape()[0] as isize,
         k as isize,
         nobs.view(),
         min_count.try_into().unwrap(),
@@ -989,13 +988,12 @@ pub fn group_prod<T>(
 ) where
     T: PandasNA + Zero + One + Clone + Copy + std::ops::MulAssign + std::ops::Add<Output = T>,
 {
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
-    let mut prodx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
+    let mut prodx = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1049,7 +1047,7 @@ pub fn group_prod<T>(
         out,
         !py_mask.is_none(),
         py_result_mask,
-        counts.len() as isize,
+        counts.shape()[0] as isize,
         k as isize,
         nobs.view(),
         min_count.try_into().unwrap(),
@@ -1085,20 +1083,18 @@ pub fn group_var<T>(
         panic!("'min_count' only used in sum and prod");
     }
 
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
-    let ncounts = counts.len();
+    let ncounts = counts.shape()[0];
     let is_std = name == "std";
     let is_sem = name == "sem";
 
-    let out_dim = out.shape();
-
     // TODO: pandas has this as an i32, but the conversion from
     // i32 to f64 is not lossless, so rust does not like it during division
-    let mut nobs = Array2::<i32>::zeros((out_dim[0], out_dim[1]));
-    let mut mean = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i32>::zeros(out.raw_dim());
+    let mut mean = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1216,17 +1212,16 @@ pub fn group_skew(
     py_result_mask: Option<PyReadwriteArray2<u8>>,
     skipna: bool,
 ) {
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // M1, M2 and M3 correspond to 1st, 2nd and third Moments
-    let mut m1 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
-    let mut m2 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
-    let mut m3 = Array2::<f64>::zeros((out_dim[0], out_dim[1]));
+    let mut m1 = Array2::<f64>::zeros(out.raw_dim());
+    let mut m2 = Array2::<f64>::zeros(out.raw_dim());
+    let mut m3 = Array2::<f64>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1274,7 +1269,7 @@ pub fn group_skew(
                         }
                     }
 
-                    for i in 0..counts.len() {
+                    for i in 0..counts.shape()[0] {
                         for j in 0..k {
                             let ct = *nobs.uget((i, j));
                             if ct < 3 {
@@ -1328,7 +1323,7 @@ pub fn group_skew(
                         }
                     }
 
-                    for i in 0..counts.len() {
+                    for i in 0..counts.shape()[0] {
                         for j in 0..k {
                             let ct = *nobs.uget((i, j));
                             if ct < 3 {
@@ -1369,16 +1364,15 @@ pub fn group_mean<T>(
         + std::ops::Div<Output = T>
         + num::NumCast,
 {
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
-    let ncounts = counts.len();
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let ncounts = counts.shape()[0];
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     // the below is equivalent to `np.zeros_like(out)` but faster
-    let mut sumx = Array2::<T>::zeros((out_dim[0], out_dim[1]));
-    let mut compensation = Array2::<T>::zeros((out_dim[0], out_dim[1]));
+    let mut sumx = Array2::<T>::zeros(out.raw_dim());
+    let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1470,7 +1464,7 @@ pub fn group_mean<T>(
         out,
         !py_mask.is_none(),
         py_result_mask,
-        counts.len() as isize,
+        counts.shape()[0] as isize,
         k as isize,
         nobs.view(),
         min_count.try_into().unwrap(),
@@ -1493,7 +1487,7 @@ pub fn group_ohlc<T>(
         panic!("'min_count' only used in sum and prod");
     }
 
-    if labels.len() == 0 {
+    if labels.shape()[0] == 0 {
         return;
     }
 
@@ -1509,7 +1503,7 @@ pub fn group_ohlc<T>(
         panic!("Argument 'values' must have only one dimension");
     }
 
-    let mut first_element_set = Array1::<u8>::zeros(counts.len());
+    let mut first_element_set = Array1::<u8>::zeros(counts.shape()[0]);
 
     match (&py_mask, py_result_mask.as_mut()) {
         (Some(py_mask), Some(py_result_mask)) => {
@@ -1617,7 +1611,7 @@ pub fn group_quantile<T>(
 ) where
     T: Zero + Copy + NumCast + std::ops::Sub<Output = T>,
 {
-    let n = labels.len();
+    let n = labels.shape()[0];
     if values.shape()[0] != n {
         panic!("shape mismatch");
     }
@@ -1642,8 +1636,8 @@ pub fn group_quantile<T>(
 
     let mut grp_start = 0;
     let mut grp_sz;
-    let nqs = qs.len();
-    let ngroups = out.len();
+    let nqs = qs.shape()[0];
+    let ngroups = out.shape()[0];
     let mut counts = Array1::<i64>::zeros(ngroups);
     let mut non_na_counts = Array1::<i64>::zeros(ngroups);
 
@@ -1747,18 +1741,17 @@ pub fn group_last<T>(
 ) where
     T: Zero + Copy + Default + PandasNA,
 {
-    let ncounts = counts.len();
+    let ncounts = counts.shape()[0];
 
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // no support for object dtypes right now
-    let mut resx = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut resx = Array2::<T>::default(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1848,18 +1841,17 @@ pub fn group_nth<T>(
 ) where
     T: Zero + Copy + Default + PandasNA,
 {
-    let ncounts = counts.len();
+    let ncounts = counts.shape()[0];
 
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
 
     // no support for object dtypes right now
-    let mut resx = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut resx = Array2::<T>::default(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
@@ -1983,16 +1975,15 @@ pub fn group_min_max<T>(
 ) where
     T: Zero + Copy + PandasNA + Default + Bounded + PartialOrd,
 {
-    let ngroups = counts.len();
+    let ngroups = counts.shape()[0];
 
-    if values.len() != labels.len() {
+    if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
     }
 
     let min_count = cmp::max(min_count, 1);
-    let out_dim = out.shape();
-    let mut nobs = Array2::<i64>::zeros((out_dim[0], out_dim[1]));
-    let mut group_min_or_max = Array2::<T>::default((out_dim[0], out_dim[1]));
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
+    let mut group_min_or_max = Array2::<T>::default(out.raw_dim());
 
     // TODO: pandas does something here to fill with NA sorting in mind
     // not bothering with that for now
