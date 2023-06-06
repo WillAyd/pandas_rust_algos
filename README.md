@@ -109,3 +109,17 @@ result2 = np.empty((N,), dtype="int64")
 
 assert (result1 == result2).all()
 ```
+
+group_sum
+
+```python
+%timeit libgroupby.group_sum(result1, counts, values, comp_ids, mask)
+%timeit pra.group_sum(result2, counts, values, comp_ids, mask)
+
+assert (result1 == result2).all()
+```
+
+
+Things to research further:
+
+1. While the implementations themselves seem ok, the Py03 Rust binding using Enum matching is considerably slower; see https://stackoverflow.com/questions/61922756/why-enum-value-binding-in-rust-is-so-slow; this would be an issue if someone tries to run these algorithms repeatedly in a small loop rather than one large application
