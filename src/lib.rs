@@ -1,5 +1,6 @@
 mod algos;
 mod groupby;
+mod threading;
 mod types;
 
 use crate::algos::take_2d_axis1;
@@ -9,6 +10,7 @@ use crate::groupby::{
     group_nth_pyobject, group_ohlc, group_prod, group_quantile, group_shift_indexer, group_skew,
     group_sum, group_var,
 };
+use crate::threading::UnsafeArrayView2;
 use crate::types::{NumericAndObjectArray2, NumericArray1, NumericArray2};
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
@@ -16,7 +18,6 @@ use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyR
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
 use pyo3::PyResult;
-use std::cell::UnsafeCell;
 use std::fmt::Debug;
 
 #[pymodule]
@@ -173,30 +174,6 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         mut out: PyReadwriteArray2<i64>,
     ) {
         take_2d_axis1(values.as_array(), indexer.as_array(), out.as_array_mut())
-    }
-
-    #[derive(Copy, Clone)]
-    struct UnsafeArrayView2<'a> {
-        array: &'a UnsafeCell<ArrayViewMut2<'a, i64>>,
-    }
-
-    unsafe impl<'a> Send for UnsafeArrayView2<'a> {}
-    unsafe impl<'a> Sync for UnsafeArrayView2<'a> {}
-
-    impl<'a> UnsafeArrayView2<'a> {
-        pub fn new(array: &'a mut ArrayViewMut2<i64>) -> Self {
-            let ptr = array as *mut ArrayViewMut2<i64> as *const UnsafeCell<ArrayViewMut2<i64>>;
-            Self {
-                array: unsafe { &*ptr },
-            }
-        }
-
-        /// SAFETY: It is UB if two threads write to the same index without
-        /// synchronization.
-        pub unsafe fn write(&self, i: usize, j: usize, value: i64) {
-            let ptr = self.array.get();
-            *(*ptr).uget_mut((i, j)) = value;
-        }
     }
 
     fn take_2d_unsafe(
