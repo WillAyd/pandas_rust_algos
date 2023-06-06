@@ -1580,7 +1580,7 @@ pub fn group_mean<T>(
                 for j in 0..k {
                     unsafe {
                         let count = *nobs.uget((i, j));
-                        if *nobs.uget((i, j)) < min_count as i64 {
+                        if *nobs.uget((i, j)) == 0 {
                             *result_mask.uget_mut((i, j)) = true;
                         } else {
                             *out.uget_mut((i, j)) =
@@ -1625,7 +1625,7 @@ pub fn group_mean<T>(
                 for j in 0..k {
                     unsafe {
                         let count = *nobs.uget((i, j));
-                        if *nobs.uget((i, j)) < min_count as i64 {
+                        if *nobs.uget((i, j)) == 0 {
                             *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
                         } else {
                             *out.uget_mut((i, j)) =
@@ -1636,17 +1636,6 @@ pub fn group_mean<T>(
             }
         }
     }
-
-    check_below_mincount(
-        out,
-        !py_mask.is_none(),
-        py_result_mask,
-        counts.shape()[0] as isize,
-        k as isize,
-        nobs.view(),
-        min_count.try_into().unwrap(),
-        sumx.view(),
-    );
 }
 
 pub fn group_ohlc<T>(
