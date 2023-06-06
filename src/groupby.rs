@@ -1,4 +1,5 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
+use ndarray::Zip;
 use num::traits::{Bounded, Float, NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
@@ -1084,18 +1085,27 @@ pub fn group_sum<T>(
                 }
                 unsafe {
                     *counts.uget_mut(*lab as usize) += 1;
-                    for j in 0..k {
-                        let val = *values.uget((i, j));
-                        if !*mask.uget((i, j)) {
-                            *nobs.uget_mut((*lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((*lab as usize, j));
-                            let t = *sumx.uget((*lab as usize, j)) + y;
-                            *compensation.uget_mut((*lab as usize, j)) =
-                                t - *sumx.uget((*lab as usize, j)) - y;
-                            *sumx.uget_mut((*lab as usize, j)) = t;
-                        }
-                    }
                 }
+                let vals = values.slice(s![i, ..]);
+                let masks = mask.slice(s![i, ..]);
+                let mut nobs_s = nobs.slice_mut(s![*lab as usize, ..]);
+                let mut compensations = compensation.slice_mut(s![*lab as usize, ..]);
+                let mut sumxs = sumx.slice_mut(s![*lab as usize, ..]);
+
+                Zip::from(vals)
+                    .and(masks)
+                    .and(&mut nobs_s)
+                    .and(&mut compensations)
+                    .and(&mut sumxs)
+                    .for_each(|val, mask, nob, comp, smx| {
+                        if !mask {
+                            *nob += 1;
+                            let y = *val - *comp;
+                            let t = *smx + y;
+                            *comp = t - *smx - y;
+                            *smx = t;
+                        }
+                    });
             }
         }
         _ => {
@@ -1105,19 +1115,25 @@ pub fn group_sum<T>(
                 }
                 unsafe {
                     *counts.uget_mut(*lab as usize) += 1;
-
-                    for j in 0..k {
-                        let val = *values.uget((i, j));
-                        if !val.isna(is_datetimelike) {
-                            *nobs.uget_mut((*lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((*lab as usize, j));
-                            let t = *sumx.uget((*lab as usize, j)) + y;
-                            *compensation.uget_mut((*lab as usize, j)) =
-                                t - *sumx.uget((*lab as usize, j)) - y;
-                            *sumx.uget_mut((*lab as usize, j)) = t;
-                        }
-                    }
                 }
+                let vals = values.slice(s![i, ..]);
+                let mut nobs_s = nobs.slice_mut(s![*lab as usize, ..]);
+                let mut compensations = compensation.slice_mut(s![*lab as usize, ..]);
+                let mut sumxs = sumx.slice_mut(s![*lab as usize, ..]);
+
+                Zip::from(vals)
+                    .and(&mut nobs_s)
+                    .and(&mut compensations)
+                    .and(&mut sumxs)
+                    .for_each(|val, nob, comp, smx| {
+                        if !(*val).isna(is_datetimelike) {
+                            *nob += 1;
+                            let y = *val - *comp;
+                            let t = *smx + y;
+                            *comp = t - *smx - y;
+                            *smx = t;
+                        }
+                    });
             }
         }
     }
