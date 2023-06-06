@@ -113,6 +113,24 @@ assert (result1 == result2).all()
 group_sum
 
 ```python
+import numpy as np
+import pandas._libs.groupby as libgroupby
+import pandas_rust_algos as pra
+
+N = 10_000_000
+ngroups = 200
+result1 = np.empty((ngroups, 1), dtype="float64")
+result2 = np.empty((ngroups, 1), dtype="float64")
+counts = np.zeros((ngroups,), dtype="int64")
+
+np.random.seed(42)
+values = np.random.rand(N, 1)
+np.random.seed(42)
+comp_ids = np.random.randint(ngroups, size=(N,))
+min_count = -1
+mask = None
+result_mask = None
+
 %timeit libgroupby.group_sum(result1, counts, values, comp_ids, mask)
 %timeit pra.group_sum(result2, counts, values, comp_ids, mask)
 
