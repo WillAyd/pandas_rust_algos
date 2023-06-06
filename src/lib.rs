@@ -5,10 +5,10 @@ mod types;
 use crate::algos::take_2d_axis1;
 use crate::groupby::{
     group_any_all, group_cummin_max, group_cumprod, group_cumsum, group_fillna_indexer, group_last,
-    group_mean, group_median_float64, group_min_max, group_nth, group_ohlc, group_prod,
-    group_quantile, group_shift_indexer, group_skew, group_sum, group_var,
+    group_last_pyobject, group_mean, group_median_float64, group_min_max, group_nth, group_ohlc,
+    group_prod, group_quantile, group_shift_indexer, group_skew, group_sum, group_var,
 };
-use crate::types::{NumericArray1, NumericArray2};
+use crate::types::{NumericAndObjectArray2, NumericArray1, NumericArray2};
 use ndarray::parallel::prelude::*;
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, Zip};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
@@ -1049,9 +1049,9 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "group_last")]
     fn group_last_py<'py>(
-        out: NumericArray2,
+        out: NumericAndObjectArray2,
         mut counts: PyReadwriteArray1<i64>,
-        values: NumericArray2,
+        values: NumericAndObjectArray2,
         labels: PyReadonlyArray1<i64>,
         mask: Option<PyReadonlyArray2<bool>>,
         result_mask: Option<PyReadwriteArray2<bool>>,
@@ -1059,7 +1059,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
         is_datetimelike: Option<bool>,
     ) -> PyResult<()> {
         match (out, values) {
-            (NumericArray2::I8(out), NumericArray2::I8(values)) => group_last(
+            (NumericAndObjectArray2::I8(out), NumericAndObjectArray2::I8(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1069,7 +1069,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::I16(out), NumericArray2::I16(values)) => group_last(
+            (NumericAndObjectArray2::I16(out), NumericAndObjectArray2::I16(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1079,7 +1079,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::I32(out), NumericArray2::I32(values)) => group_last(
+            (NumericAndObjectArray2::I32(out), NumericAndObjectArray2::I32(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1089,7 +1089,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::I64(out), NumericArray2::I64(values)) => group_last(
+            (NumericAndObjectArray2::I64(out), NumericAndObjectArray2::I64(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1099,7 +1099,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::U8(out), NumericArray2::U8(values)) => group_last(
+            (NumericAndObjectArray2::U8(out), NumericAndObjectArray2::U8(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1109,7 +1109,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::U16(out), NumericArray2::U16(values)) => group_last(
+            (NumericAndObjectArray2::U16(out), NumericAndObjectArray2::U16(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1119,7 +1119,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::U32(out), NumericArray2::U32(values)) => group_last(
+            (NumericAndObjectArray2::U32(out), NumericAndObjectArray2::U32(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1129,7 +1129,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::U64(out), NumericArray2::U64(values)) => group_last(
+            (NumericAndObjectArray2::U64(out), NumericAndObjectArray2::U64(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1140,7 +1140,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 is_datetimelike.unwrap_or(false),
             ),
 
-            (NumericArray2::F32(out), NumericArray2::F32(values)) => group_last(
+            (NumericAndObjectArray2::F32(out), NumericAndObjectArray2::F32(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1150,7 +1150,7 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
-            (NumericArray2::F64(out), NumericArray2::F64(values)) => group_last(
+            (NumericAndObjectArray2::F64(out), NumericAndObjectArray2::F64(values)) => group_last(
                 out.readwrite().as_array_mut(),
                 counts.as_array_mut(),
                 values.readonly().as_array(),
@@ -1160,6 +1160,18 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 min_count.unwrap_or(-1),
                 is_datetimelike.unwrap_or(false),
             ),
+            (NumericAndObjectArray2::PYOBJ(out), NumericAndObjectArray2::PYOBJ(values)) => {
+                group_last_pyobject(
+                    out.readwrite().as_array_mut(),
+                    counts.as_array_mut(),
+                    values.readonly().as_array(),
+                    labels.as_array(),
+                    mask,
+                    result_mask,
+                    min_count.unwrap_or(-1),
+                    is_datetimelike.unwrap_or(false),
+                )
+            }
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
 
