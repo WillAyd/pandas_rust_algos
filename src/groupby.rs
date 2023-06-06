@@ -1103,18 +1103,6 @@ pub fn group_sum<T>(
                     }
                 }
             }
-
-            for i in 0..ncounts {
-                for j in 0..k {
-                    unsafe {
-                        if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = true;
-                        } else {
-                            *out.uget_mut((i, j)) = *sumx.uget((i, j));
-                        }
-                    }
-                }
-            }
         }
         _ => {
             for i in 0..n {
@@ -1134,18 +1122,6 @@ pub fn group_sum<T>(
                             *compensation.uget_mut((lab as usize, j)) =
                                 t - *sumx.uget((lab as usize, j)) - y;
                             *sumx.uget_mut((lab as usize, j)) = t;
-                        }
-                    }
-                }
-            }
-
-            for i in 0..ncounts {
-                for j in 0..k {
-                    unsafe {
-                        if *nobs.uget((i, j)) < min_count as i64 {
-                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
-                        } else {
-                            *out.uget_mut((i, j)) = *sumx.uget((i, j));
                         }
                     }
                 }
