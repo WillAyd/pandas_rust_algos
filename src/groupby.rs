@@ -1157,7 +1157,7 @@ pub fn group_prod<T>(
     }
 
     let mut nobs = Array2::<i64>::zeros(out.raw_dim());
-    let mut prodx = Array2::<T>::zeros(out.raw_dim());
+    let mut prodx = Array2::<T>::ones(out.raw_dim());
 
     let values_shape = values.shape();
     let n = values_shape[0];
