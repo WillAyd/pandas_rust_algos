@@ -2065,19 +2065,6 @@ pub fn group_last_pyobject(
                         }
                     }
                 }
-
-                for i in 0..ncounts {
-                    for j in 0..k {
-                        unsafe {
-                            if *nobs.uget((i, j)) < min_count as i64 {
-                                *out.uget_mut((i, j)) = py.None();
-                            } else {
-                                let temp = Py::clone_ref(&*resx.uget((i, j)), py);
-                                *out.uget_mut((i, j)) = temp;
-                            }
-                        }
-                    }
-                }
             }
             _ => {
                 for i in 0..n {
@@ -2098,17 +2085,16 @@ pub fn group_last_pyobject(
                         }
                     }
                 }
-
-                for i in 0..ncounts {
-                    for j in 0..k {
-                        unsafe {
-                            if *nobs.uget((i, j)) < min_count as i64 {
-                                *out.uget_mut((i, j)) = py.None();
-                            } else {
-                                let temp = Py::clone_ref(&*resx.uget((i, j)), py);
-                                *out.uget_mut((i, j)) = temp;
-                            }
-                        }
+            }
+        }
+        for i in 0..ncounts {
+            for j in 0..k {
+                unsafe {
+                    if *nobs.uget((i, j)) < min_count as i64 {
+                        *out.uget_mut((i, j)) = py.None();
+                    } else {
+                        let temp = Py::clone_ref(&*resx.uget((i, j)), py);
+                        *out.uget_mut((i, j)) = temp;
                     }
                 }
             }
@@ -2117,12 +2103,12 @@ pub fn group_last_pyobject(
 }
 
 pub fn group_nth<T>(
-    mut out: ArrayViewMut2<T>,
+    out: ArrayViewMut2<T>,
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<bool>>,
-    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     rank: i64,
     is_datetimelike: bool,
@@ -2145,10 +2131,9 @@ pub fn group_nth<T>(
     let n = values_shape[0];
     let k = values_shape[1];
 
-    match (&py_mask, py_result_mask.as_mut()) {
-        (Some(py_mask), Some(py_result_mask)) => {
+    match &py_mask {
+        Some(py_mask) => {
             let mask = py_mask.as_array();
-            let mut result_mask = py_result_mask.as_array_mut();
 
             for i in 0..n {
                 unsafe {
@@ -2166,18 +2151,6 @@ pub fn group_nth<T>(
                             if *nobs.uget((lab as usize, j)) == rank {
                                 *resx.uget_mut((lab as usize, j)) = val;
                             }
-                        }
-                    }
-                }
-            }
-
-            for i in 0..ncounts {
-                for j in 0..k {
-                    unsafe {
-                        if *nobs.uget((i, j)) < min_count as i64 {
-                            *result_mask.uget_mut((i, j)) = true;
-                        } else {
-                            *out.uget_mut((i, j)) = *resx.uget((i, j))
                         }
                     }
                 }
@@ -2204,20 +2177,110 @@ pub fn group_nth<T>(
                     }
                 }
             }
+        }
+    }
 
-            for i in 0..ncounts {
-                for j in 0..k {
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        ncounts as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        resx.view(),
+    );
+}
+
+pub fn group_nth_pyobject(
+    mut out: ArrayViewMut2<PyObject>,
+    mut counts: ArrayViewMut1<i64>,
+    values: ArrayView2<PyObject>,
+    labels: ArrayView1<i64>,
+    py_mask: Option<PyReadonlyArray2<bool>>,
+    _py_result_mask: Option<PyReadwriteArray2<bool>>,
+    min_count: isize,
+    rank: i64,
+    _is_datetimelike: bool,
+) {
+    let ncounts = counts.shape()[0];
+
+    if values.shape()[0] != labels.shape()[0] {
+        panic!("len(index) != len(labels)");
+    }
+
+    let min_count = cmp::max(min_count, 1);
+    let mut nobs = Array2::<i64>::zeros(out.raw_dim());
+
+    // no support for object dtypes right now
+    Python::with_gil(|py| {
+        let mut resx = Array2::from_shape_fn(out.raw_dim(), |(_, _)| py.None());
+
+        let values_shape = values.shape();
+        let n = values_shape[0];
+        let k = values_shape[1];
+
+        match &py_mask {
+            Some(py_mask) => {
+                let mask = py_mask.as_array();
+
+                for i in 0..n {
                     unsafe {
-                        if *nobs.uget((i, j)) < min_count as i64 {
-                            *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
-                        } else {
-                            *out.uget_mut((i, j)) = *resx.uget((i, j))
+                        let lab = *labels.uget(i);
+                        if lab < 0 {
+                            continue;
+                        }
+
+                        *counts.uget_mut(lab as usize) += 1;
+                        for j in 0..k {
+                            let val = Py::clone_ref(&*values.uget((i, j)), py);
+
+                            if !*mask.uget((i, j)) {
+                                *nobs.uget_mut((lab as usize, j)) += 1;
+                                if *nobs.uget((lab as usize, j)) == rank {
+                                    *resx.uget_mut((lab as usize, j)) = val;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {
+                for i in 0..n {
+                    unsafe {
+                        let lab = *labels.uget(i);
+                        if lab < 0 {
+                            continue;
+                        }
+
+                        *counts.uget_mut(lab as usize) += 1;
+                        for j in 0..k {
+                            let val = Py::clone_ref(&*values.uget((i, j)), py);
+
+                            if !val.is_none(py) {
+                                *nobs.uget_mut((lab as usize, j)) += 1;
+                                if *nobs.uget((lab as usize, j)) == rank {
+                                    *resx.uget_mut((lab as usize, j)) = val;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-    }
+        for i in 0..ncounts {
+            for j in 0..k {
+                unsafe {
+                    if *nobs.uget((i, j)) < min_count as i64 {
+                        *out.uget_mut((i, j)) = py.None();
+                    } else {
+                        let temp = Py::clone_ref(&*resx.uget((i, j)), py);
+                        *out.uget_mut((i, j)) = temp;
+                    }
+                }
+            }
+        }
+    })
 }
 
 /// Compute minimum/maximum  of columns of `values`, in row groups `labels`.
