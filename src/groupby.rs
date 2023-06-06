@@ -1051,12 +1051,12 @@ fn check_below_mincount<T>(
 
 /// Only aggregates on axis=0 using Kahan summation
 pub fn group_sum<T>(
-    mut out: ArrayViewMut2<T>,
+    out: ArrayViewMut2<T>,
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
     py_mask: Option<PyReadonlyArray2<bool>>,
-    mut py_result_mask: Option<PyReadwriteArray2<bool>>,
+    py_result_mask: Option<PyReadwriteArray2<bool>>,
     min_count: isize,
     is_datetimelike: bool,
 ) where
@@ -1066,62 +1066,55 @@ pub fn group_sum<T>(
         panic!("len(index) != len(labels)");
     }
 
-    let ncounts = counts.shape()[0];
     let mut nobs = Array2::<i64>::zeros(out.raw_dim());
     // the below is equivalent to `np.zeros_like(out)` but faster
     let mut sumx = Array2::<T>::zeros(out.raw_dim());
     let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
-    let n = values_shape[0];
     let k = values_shape[1];
 
-    // For now we haven't implemented the PyObject case - do we need to?
-    match (&py_mask, py_result_mask.as_mut()) {
-        (Some(py_mask), Some(py_result_mask)) => {
+    match &py_mask {
+        Some(py_mask) => {
             let mask = py_mask.as_array();
-            let mut result_mask = py_result_mask.as_array_mut();
 
-            for i in 0..n {
+            for (i, lab) in labels.indexed_iter() {
+                if *lab < 0 {
+                    continue;
+                }
                 unsafe {
-                    let lab = *labels.uget(i);
-                    if lab < 0 {
-                        continue;
-                    }
-
-                    *counts.uget_mut(lab as usize) += 1;
+                    *counts.uget_mut(*lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
                         if !*mask.uget((i, j)) {
-                            *nobs.uget_mut((lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *sumx.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *sumx.uget((lab as usize, j)) - y;
-                            *sumx.uget_mut((lab as usize, j)) = t;
+                            *nobs.uget_mut((*lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((*lab as usize, j));
+                            let t = *sumx.uget((*lab as usize, j)) + y;
+                            *compensation.uget_mut((*lab as usize, j)) =
+                                t - *sumx.uget((*lab as usize, j)) - y;
+                            *sumx.uget_mut((*lab as usize, j)) = t;
                         }
                     }
                 }
             }
         }
         _ => {
-            for i in 0..n {
+            for (i, lab) in labels.indexed_iter() {
+                if *lab < 0 {
+                    continue;
+                }
                 unsafe {
-                    let lab = *labels.uget(i);
-                    if lab < 0 {
-                        continue;
-                    }
+                    *counts.uget_mut(*lab as usize) += 1;
 
-                    *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
                         if !val.isna(is_datetimelike) {
-                            *nobs.uget_mut((lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *sumx.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *sumx.uget((lab as usize, j)) - y;
-                            *sumx.uget_mut((lab as usize, j)) = t;
+                            *nobs.uget_mut((*lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((*lab as usize, j));
+                            let t = *sumx.uget((*lab as usize, j)) + y;
+                            *compensation.uget_mut((*lab as usize, j)) =
+                                t - *sumx.uget((*lab as usize, j)) - y;
+                            *sumx.uget_mut((*lab as usize, j)) = t;
                         }
                     }
                 }
@@ -1509,7 +1502,7 @@ pub fn group_mean<T>(
     mut counts: ArrayViewMut1<i64>,
     values: ArrayView2<T>,
     labels: ArrayView1<i64>,
-    min_count: isize,
+    _min_count: isize,
     is_datetimelike: bool,
     py_mask: Option<PyReadonlyArray2<bool>>,
     mut py_result_mask: Option<PyReadwriteArray2<bool>>,
