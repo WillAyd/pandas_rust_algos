@@ -1290,23 +1290,22 @@ pub fn group_var<T>(
                         }
                     }
                 }
-                for i in 0..ncounts {
-                    for j in 0..k {
-                        unsafe {
-                            let ct: T = NumCast::from(*nobs.uget((i, j))).unwrap();
-                            if ct < NumCast::from(ddof).unwrap() {
-                                *result_mask.uget_mut((i, j)) = true;
+            }
+            for i in 0..ncounts {
+                for j in 0..k {
+                    unsafe {
+                        let ct: T = NumCast::from(*nobs.uget((i, j))).unwrap();
+                        if ct < NumCast::from(ddof).unwrap() {
+                            *result_mask.uget_mut((i, j)) = true;
+                        } else {
+                            if is_std {
+                                *out.uget_mut((i, j)) = (*out.uget((i, j)) / ct - ddof_t).sqrt();
+                            } else if is_sem {
+                                *out.uget_mut((i, j)) =
+                                    (*out.uget((i, j)) / (ct - ddof_t) / ct).sqrt();
                             } else {
-                                if is_std {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / ct - ddof_t).sqrt();
-                                } else if is_sem {
-                                    *out.uget_mut((i, j)) =
-                                        (*out.uget((i, j)) / (ct - ddof_t) / ct).sqrt();
-                                } else {
-                                    // just "var"
-                                    *out.uget_mut((i, j)) /= ct - ddof_t;
-                                }
+                                // just "var"
+                                *out.uget_mut((i, j)) /= ct - ddof_t;
                             }
                         }
                     }
