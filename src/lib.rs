@@ -357,6 +357,16 @@ fn pandas_rust_algos(_py: Python, m: &PyModule) -> PyResult<()> {
                 mask,
                 result_mask,
             ),
+            (NumericArray2::U64(out), NumericArray2::U64(values)) => group_cumsum(
+                out.readwrite().as_array_mut(),
+                values.readonly().as_array(),
+                labels.as_array(),
+                ngroups,
+                is_datetimelike,
+                skipna.unwrap_or(true),
+                mask,
+                result_mask,
+            ),
             _ => return Err(PyNotImplementedError::new_err("not implemented")),
         }
 

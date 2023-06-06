@@ -1,5 +1,5 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
-use num::traits::{Bounded, NumCast, One, Zero};
+use num::traits::{Bounded, Float, NumCast, One, Zero};
 use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use std::alloc::{alloc, dealloc, Layout};
@@ -11,6 +11,7 @@ use std::mem::size_of;
 pub trait PandasNA {
     fn na_val(is_datetimelike: bool) -> Self;
     fn isna(&self, is_datetimelike: bool) -> bool;
+    fn is_finite(&self) -> bool;
 }
 
 impl PandasNA for f64 {
@@ -21,6 +22,10 @@ impl PandasNA for f64 {
     fn isna(&self, _is_datetimelike: bool) -> bool {
         self.is_nan()
     }
+
+    fn is_finite(&self) -> bool {
+        <f64 as Float>::is_finite(*self)
+    }
 }
 
 impl PandasNA for f32 {
@@ -30,6 +35,10 @@ impl PandasNA for f32 {
 
     fn isna(&self, _is_datetimelike: bool) -> bool {
         self.is_nan()
+    }
+
+    fn is_finite(&self) -> bool {
+        <f32 as Float>::is_finite(*self)
     }
 }
 
@@ -48,6 +57,32 @@ impl PandasNA for i64 {
         } else {
             *self == 0
         }
+    }
+
+    fn is_finite(&self) -> bool {
+        true
+    }
+}
+
+impl PandasNA for u64 {
+    fn na_val(is_datetimelike: bool) -> Self {
+        if is_datetimelike {
+            u64::MAX // TOOD: this might not be correct
+        } else {
+            0
+        }
+    }
+
+    fn isna(&self, is_datetimelike: bool) -> bool {
+        if is_datetimelike {
+            *self == u64::MIN
+        } else {
+            *self == 0
+        }
+    }
+
+    fn is_finite(&self) -> bool {
+        true
     }
 }
 
@@ -398,6 +433,25 @@ impl CumSumAccumulator for f32 {
 }
 
 impl CumSumAccumulator for i64 {
+    fn acummulate<T>(
+        val: T,
+        accum: ArrayView2<T>,
+        mut _compensation: ArrayViewMut2<T>,
+        lab: usize,
+        j: usize,
+    ) -> T
+    where
+        T: std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy,
+    {
+        let t;
+        unsafe {
+            t = val + *accum.uget((lab, j));
+        }
+        t
+    }
+}
+
+impl CumSumAccumulator for u64 {
     fn acummulate<T>(
         val: T,
         accum: ArrayView2<T>,
@@ -1392,12 +1446,21 @@ pub fn group_mean<T>(
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
-                        if !*mask.uget((i, j)) {
+                        let isna_entry = *mask.uget((i, j));
+                        if !isna_entry {
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let y = val - *compensation.uget((lab as usize, j));
                             let t = *sumx.uget((lab as usize, j)) + y;
                             *compensation.uget_mut((lab as usize, j)) =
                                 t - *sumx.uget((lab as usize, j)) - y;
+                            if !(*compensation.uget((lab as usize, j))).is_finite() {
+                                // GH#50367
+                                // If val is +/- infinity, compensation is NaN
+                                // which would lead to results being NaN instead
+                                // of +/-infinity. We cannot use util.is_nan
+                                // because of no gil
+                                *compensation.uget_mut((lab as usize, j)) = <T as Zero>::zero();
+                            }
                             *sumx.uget_mut((lab as usize, j)) = t;
                         }
                     }
@@ -1435,6 +1498,14 @@ pub fn group_mean<T>(
                             let t = *sumx.uget((lab as usize, j)) + y;
                             *compensation.uget_mut((lab as usize, j)) =
                                 t - *sumx.uget((lab as usize, j)) - y;
+                            if !(*compensation.uget((lab as usize, j))).is_finite() {
+                                // GH#50367
+                                // If val is +/- infinity, compensation is NaN
+                                // which would lead to results being NaN instead
+                                // of +/-infinity. We cannot use util.is_nan
+                                // because of no gil
+                                *compensation.uget_mut((lab as usize, j)) = <T as Zero>::zero();
+                            }
                             *sumx.uget_mut((lab as usize, j)) = t;
                         }
                     }
@@ -1522,7 +1593,7 @@ pub fn group_ohlc<T>(
                         continue;
                     }
 
-                    if *first_element_set.uget(lab as usize) == 0 {
+                    if *first_element_set.uget(lab as usize) != 0 {
                         *out.uget_mut((lab as usize, 0)) = val;
                         *out.uget_mut((lab as usize, 1)) = val;
                         *out.uget_mut((lab as usize, 2)) = val;
@@ -1568,7 +1639,7 @@ pub fn group_ohlc<T>(
                         continue;
                     }
 
-                    if *first_element_set.uget(lab as usize) == 0 {
+                    if *first_element_set.uget(lab as usize) != 0 {
                         *out.uget_mut((lab as usize, 0)) = val;
                         *out.uget_mut((lab as usize, 1)) = val;
                         *out.uget_mut((lab as usize, 2)) = val;
