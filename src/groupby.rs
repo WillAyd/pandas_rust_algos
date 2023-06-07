@@ -2134,18 +2134,18 @@ pub fn group_nth<T>(
                     }
                 }
             }
-            check_below_mincount(
-                out,
-                !py_mask.is_none(),
-                py_result_mask,
-                ncounts as isize,
-                k as isize,
-                nobs.view(),
-                min_count.try_into().unwrap(),
-                resx.view(),
-            );
         }
     }
+    check_below_mincount(
+        out,
+        !py_mask.is_none(),
+        py_result_mask,
+        ncounts as isize,
+        k as isize,
+        nobs.view(),
+        min_count.try_into().unwrap(),
+        resx.view(),
+    );
 }
 
 pub fn group_nth_pyobject(
