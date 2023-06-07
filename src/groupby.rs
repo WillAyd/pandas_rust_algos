@@ -446,9 +446,9 @@ pub fn group_cumprod<T>(
                     }
 
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         let isna_entry = *mask.uget((i, j));
                         if !isna_entry {
+                            let val = *values.uget((i, j));
                             let isna_prev = *accum_mask.uget((lab as usize, j)) != 0;
                             if isna_prev {
                                 *out.uget_mut((i, j)) = <T as PandasNA>::na_val(is_datetimelike);
@@ -661,7 +661,6 @@ pub fn group_cumsum<T>(
                     }
 
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         let isna_entry = *mask.uget((i, j));
 
                         if !skipna {
@@ -683,6 +682,7 @@ pub fn group_cumsum<T>(
                                 *accum_mask.uget_mut((lab as usize, j)) = 1;
                             }
                         } else {
+                            let val = *values.uget((i, j));
                             let t = T::acummulate(
                                 val,
                                 accum.view(),
@@ -1088,8 +1088,8 @@ pub fn group_sum<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let y = val - *compensation.uget((lab as usize, j));
                             let t = *sumx.uget((lab as usize, j)) + y;
@@ -1173,8 +1173,8 @@ pub fn group_prod<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             *prodx.uget_mut((lab as usize, j)) *= val;
                         }
@@ -1276,8 +1276,8 @@ pub fn group_var<T>(
                     *counts.uget_mut(lab as usize) += 1;
 
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let oldmean = *mean.uget((lab as usize, j));
                             *mean.uget_mut((lab as usize, j)) += (val - oldmean)
@@ -1401,10 +1401,9 @@ pub fn group_skew(
                     *counts.uget_mut(lab as usize) += 1;
 
                     for j in 0..k {
-                        let val = *values.uget((i, j));
-
                         let isna_entry = *mask.uget((i, j));
                         if !isna_entry {
+                            let val = *values.uget((i, j));
                             // Based on Runningsats::Push from
                             // https://www.johndcook.com/blog/skewness_kurtosis/
                             let n1 = *nobs.uget((lab as usize, j));
@@ -1551,9 +1550,9 @@ pub fn group_mean<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
                         let isna_entry = *mask.uget((i, j));
                         if !isna_entry {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let y = val - *compensation.uget((lab as usize, j));
                             let t = *sumx.uget((lab as usize, j)) + y;
@@ -1682,11 +1681,11 @@ pub fn group_ohlc<T>(
                     }
 
                     *counts.uget_mut(lab as usize) += 1;
-                    let val = *values.uget((i, 0));
                     let isna_entry = *mask.uget((i, 0));
                     if isna_entry {
                         continue;
                     }
+                    let val = *values.uget((i, 0));
 
                     if *first_element_set.uget(lab as usize) != 0 {
                         *out.uget_mut((lab as usize, 0)) = val;
@@ -1933,9 +1932,8 @@ pub fn group_last<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
-
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             *resx.uget_mut((lab as usize, j)) = val;
                         }
@@ -2017,9 +2015,8 @@ pub fn group_last_pyobject(
 
                         *counts.uget_mut(lab as usize) += 1;
                         for j in 0..k {
-                            let val = Py::clone_ref(&*values.uget((i, j)), py);
-
                             if !*mask.uget((i, j)) {
+                                let val = Py::clone_ref(&*values.uget((i, j)), py);
                                 *nobs.uget_mut((lab as usize, j)) += 1;
                                 *resx.uget_mut((lab as usize, j)) = val;
                             }
@@ -2105,9 +2102,8 @@ pub fn group_nth<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
-
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             if *nobs.uget((lab as usize, j)) == rank {
                                 *resx.uget_mut((lab as usize, j)) = val;
@@ -2193,9 +2189,8 @@ pub fn group_nth_pyobject(
 
                         *counts.uget_mut(lab as usize) += 1;
                         for j in 0..k {
-                            let val = Py::clone_ref(&*values.uget((i, j)), py);
-
                             if !*mask.uget((i, j)) {
+                                let val = Py::clone_ref(&*values.uget((i, j)), py);
                                 *nobs.uget_mut((lab as usize, j)) += 1;
                                 if *nobs.uget((lab as usize, j)) == rank {
                                     *resx.uget_mut((lab as usize, j)) = val;
@@ -2322,9 +2317,8 @@ pub fn group_min_max<T>(
 
                     *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
-                        let val = *values.uget((i, j));
-
                         if !*mask.uget((i, j)) {
+                            let val = *values.uget((i, j));
                             *nobs.uget_mut((lab as usize, j)) += 1;
                             let val_cmp = val
                                 .partial_cmp(&*group_min_or_max.uget((lab as usize, j)))
