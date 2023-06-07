@@ -1072,49 +1072,53 @@ pub fn group_sum<T>(
     let mut compensation = Array2::<T>::zeros(out.raw_dim());
 
     let values_shape = values.shape();
+    let n = values_shape[0];
     let k = values_shape[1];
 
     match &py_mask {
         Some(py_mask) => {
             let mask = py_mask.as_array();
 
-            for (i, lab) in labels.indexed_iter() {
-                if *lab < 0 {
-                    continue;
-                }
+            for i in 0..n {
                 unsafe {
-                    *counts.uget_mut(*lab as usize) += 1;
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+
+                    *counts.uget_mut(lab as usize) += 1;
                     for j in 0..k {
                         let val = *values.uget((i, j));
                         if !*mask.uget((i, j)) {
-                            *nobs.uget_mut((*lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((*lab as usize, j));
-                            let t = *sumx.uget((*lab as usize, j)) + y;
-                            *compensation.uget_mut((*lab as usize, j)) =
-                                t - *sumx.uget((*lab as usize, j)) - y;
-                            *sumx.uget_mut((*lab as usize, j)) = t;
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
                         }
                     }
                 }
             }
         }
         _ => {
-            for (i, lab) in labels.indexed_iter() {
-                if *lab < 0 {
-                    continue;
-                }
+            for i in 0..n {
                 unsafe {
-                    *counts.uget_mut(*lab as usize) += 1;
+                    let lab = *labels.uget(i);
+                    if lab < 0 {
+                        continue;
+                    }
+                    *counts.uget_mut(lab as usize) += 1;
 
                     for j in 0..k {
                         let val = *values.uget((i, j));
                         if !val.isna(is_datetimelike) {
-                            *nobs.uget_mut((*lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((*lab as usize, j));
-                            let t = *sumx.uget((*lab as usize, j)) + y;
-                            *compensation.uget_mut((*lab as usize, j)) =
-                                t - *sumx.uget((*lab as usize, j)) - y;
-                            *sumx.uget_mut((*lab as usize, j)) = t;
+                            *nobs.uget_mut((lab as usize, j)) += 1;
+                            let y = val - *compensation.uget((lab as usize, j));
+                            let t = *sumx.uget((lab as usize, j)) + y;
+                            *compensation.uget_mut((lab as usize, j)) =
+                                t - *sumx.uget((lab as usize, j)) - y;
+                            *sumx.uget_mut((lab as usize, j)) = t;
                         }
                     }
                 }
