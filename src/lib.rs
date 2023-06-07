@@ -1,6 +1,7 @@
 mod algos;
 mod groupby;
 mod threading;
+mod traits;
 mod types;
 
 use crate::algos::take_2d_axis1;
