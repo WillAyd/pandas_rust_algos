@@ -866,52 +866,33 @@ pub fn group_sum<T>(
     let n = values_shape[0];
     let k = values_shape[1];
 
-    match &py_mask {
-        Some(py_mask) => {
-            let mask = py_mask.as_array();
+    for i in 0..n {
+        unsafe {
+            let lab = *labels.uget(i);
+            if lab < 0 {
+                continue;
+            }
 
-            for i in 0..n {
-                unsafe {
-                    let lab = *labels.uget(i);
-                    if lab < 0 {
-                        continue;
+            *counts.uget_mut(lab as usize) += 1;
+            for j in 0..k {
+                let val = *values.uget((i, j));
+                let isna_entry;
+                match &py_mask {
+                    Some(py_mask) => {
+                        let mask = py_mask.as_array();
+                        isna_entry = *mask.uget((i, j));
                     }
-
-                    *counts.uget_mut(lab as usize) += 1;
-                    for j in 0..k {
-                        if !*mask.uget((i, j)) {
-                            let val = *values.uget((i, j));
-                            *nobs.uget_mut((lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *sumx.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *sumx.uget((lab as usize, j)) - y;
-                            *sumx.uget_mut((lab as usize, j)) = t;
-                        }
+                    _ => {
+                        isna_entry = val.isna(is_datetimelike);
                     }
                 }
-            }
-        }
-        _ => {
-            for i in 0..n {
-                unsafe {
-                    let lab = *labels.uget(i);
-                    if lab < 0 {
-                        continue;
-                    }
-                    *counts.uget_mut(lab as usize) += 1;
-
-                    for j in 0..k {
-                        let val = *values.uget((i, j));
-                        if !val.isna(is_datetimelike) {
-                            *nobs.uget_mut((lab as usize, j)) += 1;
-                            let y = val - *compensation.uget((lab as usize, j));
-                            let t = *sumx.uget((lab as usize, j)) + y;
-                            *compensation.uget_mut((lab as usize, j)) =
-                                t - *sumx.uget((lab as usize, j)) - y;
-                            *sumx.uget_mut((lab as usize, j)) = t;
-                        }
-                    }
+                if !isna_entry {
+                    *nobs.uget_mut((lab as usize, j)) += 1;
+                    let y = val - *compensation.uget((lab as usize, j));
+                    let t = *sumx.uget((lab as usize, j)) + y;
+                    *compensation.uget_mut((lab as usize, j)) =
+                        t - *sumx.uget((lab as usize, j)) - y;
+                    *sumx.uget_mut((lab as usize, j)) = t;
                 }
             }
         }
