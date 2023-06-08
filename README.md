@@ -4,6 +4,8 @@ https://github.com/WillAyd/pandas/tree/rust-algos
 
 As of now about half of the groupby algorithms are implemented. If you would like to contribute any more to learn rust please do so!
 
+Benchmarks have been started in the benches folder. Run ``cargo +nightly bench`` to measure performance.
+
 You can also use this library directly. To do so run ``maturin develop --release`` from the project root and it will install the Python package into your environment
 
 ```python
