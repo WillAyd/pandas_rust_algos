@@ -148,12 +148,12 @@ pub fn group_median_float64(
 
             for i in 0..k {
                 unsafe {
-                    let increment = _counts[0] as usize;
+                    let increment = *_counts.uget(0) as usize;
                     ptr = ptr.add(increment);
                     ptr_mask = ptr_mask.add(increment);
 
                     for j in 0..ngroups {
-                        let size = _counts[j + 1];
+                        let size = *_counts.uget(j + 1);
                         let result = median_linear_mask(ptr, size, ptr_mask);
                         *out.uget_mut((j, i)) = result;
 
