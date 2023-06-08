@@ -1,7 +1,9 @@
 use crate::algos::{groupsort_indexer, kth_smallest_c, take_2d_axis1};
 use crate::traits::PandasNA;
 use num::traits::{Bounded, Float, NumCast, One, Zero};
-use numpy::ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use numpy::ndarray::{
+    s, Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip,
+};
 use numpy::{PyReadonlyArray2, PyReadwriteArray2};
 use pyo3::prelude::{Py, Python};
 use pyo3::PyObject;
@@ -851,7 +853,7 @@ pub fn group_sum<T>(
     min_count: isize,
     is_datetimelike: bool,
 ) where
-    T: PandasNA + Zero + One + Clone + Copy + std::ops::Sub<Output = T> + std::ops::Add<Output = T>,
+    T: PandasNA + Zero + One + Clone + Copy + std::ops::AddAssign,
 {
     if values.shape()[0] != labels.shape()[0] {
         panic!("len(index) != len(labels)");
@@ -866,37 +868,31 @@ pub fn group_sum<T>(
     let n = values_shape[0];
     let k = values_shape[1];
 
-    for i in 0..n {
-        unsafe {
-            let lab = *labels.uget(i);
-            if lab < 0 {
-                continue;
-            }
-
-            *counts.uget_mut(lab as usize) += 1;
-            for j in 0..k {
-                let val = *values.uget((i, j));
-                let isna_entry;
-                match &py_mask {
-                    Some(py_mask) => {
-                        let mask = py_mask.as_array();
-                        isna_entry = *mask.uget((i, j));
+    Zip::indexed(labels).for_each(|i, lab| {
+        if *lab >= 0 {
+            let ulab = *lab as usize;
+            unsafe {
+                *counts.uget_mut(ulab) += 1;
+                for j in 0..k {
+                    let val = *values.uget((i, j));
+                    let isna_entry;
+                    match &py_mask {
+                        Some(py_mask) => {
+                            let mask = py_mask.as_array();
+                            isna_entry = *mask.uget((i, j));
+                        }
+                        _ => {
+                            isna_entry = val.isna(is_datetimelike);
+                        }
                     }
-                    _ => {
-                        isna_entry = val.isna(is_datetimelike);
+                    if !isna_entry {
+                        *nobs.uget_mut((ulab, j)) += 1;
+                        *sumx.uget_mut((ulab, j)) += val;
                     }
-                }
-                if !isna_entry {
-                    *nobs.uget_mut((lab as usize, j)) += 1;
-                    let y = val - *compensation.uget((lab as usize, j));
-                    let t = *sumx.uget((lab as usize, j)) + y;
-                    *compensation.uget_mut((lab as usize, j)) =
-                        t - *sumx.uget((lab as usize, j)) - y;
-                    *sumx.uget_mut((lab as usize, j)) = t;
                 }
             }
         }
-    }
+    });
 
     check_below_mincount(
         out,
