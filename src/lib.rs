@@ -1,5 +1,5 @@
-mod algos;
-mod groupby;
+pub mod algos;
+pub mod groupby;
 mod threading;
 mod traits;
 mod types;
